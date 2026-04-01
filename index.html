@@ -580,26 +580,29 @@ const matchDetails = {
 // ── CAMB AI TTS ENGINE ──
 const CAMB_KEY="cb4dd2e2-d591-47ec-84ab-74461d004cec";
 const CAMB_API="https://client.camb.ai/apis";
-let _cambVoices=[]; // [jakeId, bradId] resolved at runtime
+// Hardcoded verified voice IDs
+const JAKE_ID=165325; // Jake (Streamer) – fast, loud, energetic
+const BRAD_ID=147337; // Brad (Commentator) – excited sports announcer
+const _cambVoices=[JAKE_ID,BRAD_ID]; // index 0=Jake, 1=Brad
 const _ttsCache={}; // key → audio URL string
 let _currentAudio=null;
+let _audioCtx=null;
 
-async function _initVoices(){
-  if(_cambVoices.length) return;
-  try{
-    const r=await fetch(CAMB_API+"/list-voices",{headers:{"x-api-key":CAMB_KEY}});
-    const list=await r.json();
-    const voices=Array.isArray(list)?list:(list.voices||[]);
-    const jake=voices.find(v=>/jake/i.test(v.voice_name));
-    const brad=voices.find(v=>/brad/i.test(v.voice_name));
-    if(jake) _cambVoices.push(jake.id);
-    if(brad) _cambVoices.push(brad.id);
-    if(!_cambVoices.length) _cambVoices=[147320]; // fallback
-  }catch(e){ _cambVoices=[147320]; }
+// Unlock audio on first user gesture — must be called synchronously inside a click handler
+function _unlockAudio(){
+  if(!_audioCtx){
+    try{ _audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+  }
+  if(_audioCtx&&_audioCtx.state==="suspended") _audioCtx.resume();
+  // Play a silent buffer to warm up audio pipeline
+  if(_audioCtx){
+    const buf=_audioCtx.createBuffer(1,1,22050);
+    const src=_audioCtx.createBufferSource();
+    src.buffer=buf; src.connect(_audioCtx.destination); src.start(0);
+  }
 }
 
 async function _fetchTTS(text,voiceIdx){
-  await _initVoices();
   const voiceId=_cambVoices[voiceIdx%_cambVoices.length];
   // Step 1: submit
   const r1=await fetch(CAMB_API+"/tts",{
@@ -801,6 +804,7 @@ function renderScorecard(){
 
 // ── COMMENTARY ──
 function startComm(style, btnEl){
+  _unlockAudio(); // Must be synchronous inside click handler to satisfy browser autoplay policy
   // Switch style buttons
   document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("active"));
   if(btnEl) btnEl.classList.add("active");
@@ -820,7 +824,24 @@ function startComm(style, btnEl){
     document.querySelectorAll(".det-tab").forEach((t,i)=>t.classList.toggle("active",i===0));
     renderDetBody();
   }
-  advancePlay();
+  // For completed matches, Jake introduces highlights in Hindi first
+  const allM=[...matchData.live,...matchData.upcoming,...matchData.completed];
+  const curM=allM.find(m=>m.label===detKey);
+  if(curM&&curM.badge==="completed"){
+    _playHindiIntro().then(()=>{ if(detPlaying) advancePlay(); });
+  } else {
+    advancePlay();
+  }
+}
+
+async function _playHindiIntro(){
+  try{
+    document.getElementById("ssCommStatus").textContent="⏳";
+    const text="यार, मैच तो खत्म हो गया... लेकिन रुको! अब सुनो इस मैच के best highlights!";
+    const ck="_hindi_intro_"+detKey;
+    if(!_ttsCache[ck]) _ttsCache[ck]=await _fetchTTS(text,0); // Jake
+    await _playAudio(_ttsCache[ck]);
+  }catch(e){ /* if intro fails, just proceed to highlights */ }
 }
 
 async function advancePlay(){
