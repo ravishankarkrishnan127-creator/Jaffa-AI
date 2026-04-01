@@ -301,44 +301,59 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
 const LOGIN_KEY = "jaffa_user_phone";
 let errorTimer = null, logoutOpen = false, currentTab = "live";
 
-// ── REAL DATA (updated 31 Mar 2026, 09:24 UTC) ──
+// ── REAL DATA (updated 1 Apr 2026) ──
 const matchData = {
-  live: [
-    {
-      label:"CAN PM Cup · 21st Match", badge:"live",
-      team1:{flag:"🏔️",name:"Koshi",score:"38",wkts:"0",overs:"9.4 ov"},
-      team2:{flag:"🚔",name:"Police",score:"",wkts:"",overs:"yet to bat"},
-      status:"🔴 LIVE · Koshi batting · RR: <span class=hl-o>3.93</span> · <span class=hl-o>Suman 7(20) · Ankit 25(38)</span>",
-      extra:"📍 Birgunj, Nepal · Men's PM Cup",
-      result:"", listen:false
-    }
-  ],
+  live: [],
   upcoming: [
     {
-      label:"IPL 2026 · 4th Match", badge:"upcoming",
-      team1:{flag:"🔴",name:"PBKS",score:"",wkts:"",overs:""},
-      team2:{flag:"🔵",name:"GT",score:"",wkts:"",overs:""},
-      status:"🕖 31 Mar · 7:30 PM IST",
-      extra:"📍 Maharaja Yadavindra Singh Stadium, New Chandigarh",
+      label:"IPL 2026 · 5th Match", badge:"upcoming",
+      team1:{flag:"🔵",name:"LSG",score:"",wkts:"",overs:""},
+      team2:{flag:"🔵",name:"DC",score:"",wkts:"",overs:""},
+      status:"🕖 2 Apr · 7:30 PM IST · Lucknow Super Giants vs Delhi Capitals",
+      extra:"📍 BRSABV Ekana Cricket Stadium, Lucknow",
       result:"", listen:false
     },
     {
-      label:"PSL 2026 · 7th Match", badge:"upcoming",
-      team1:{flag:"🔴",name:"United",score:"",wkts:"",overs:""},
-      team2:{flag:"🟡",name:"Zalmi",score:"",wkts:"",overs:""},
-      status:"🕖 31 Mar · Islamabad United vs Peshawar Zalmi",
-      extra:"📍 Gaddafi Stadium, Lahore",
+      label:"IPL 2026 · 6th Match", badge:"upcoming",
+      team1:{flag:"🟠",name:"SRH",score:"",wkts:"",overs:""},
+      team2:{flag:"🩷",name:"RR",score:"",wkts:"",overs:""},
+      status:"🕖 3 Apr · 7:30 PM IST · Sunrisers Hyderabad vs Rajasthan Royals",
+      extra:"📍 Rajiv Gandhi International Stadium, Hyderabad",
       result:"", listen:false
     }
   ],
   completed: [
     {
       label:"IPL 2026 · 3rd Match", badge:"completed",
-      team1:{flag:"🟡",name:"CSK",score:"127",wkts:"all out",overs:"20.0 ov"},
+      team1:{flag:"🟡",name:"CSK",score:"127",wkts:"all out",overs:"19.4 ov"},
       team2:{flag:"🩷",name:"RR",score:"128",wkts:"2",overs:"12.1 ov",winner:true},
       status:"<span class=hl-g>Rajasthan Royals won by 8 wickets</span>",
       extra:"📍 Barsapara Cricket Stadium, Guwahati",
-      result:"✅ RR won by 8 wkts (12.1 ov)", listen:true
+      result:"✅ RR won by 8 wkts", listen:true
+    },
+    {
+      label:"IPL 2026 · 4th Match", badge:"completed",
+      team1:{flag:"🔵",name:"GT",score:"162",wkts:"6",overs:"20.0 ov"},
+      team2:{flag:"🔴",name:"PBKS",score:"165",wkts:"7",overs:"19.1 ov",winner:true},
+      status:"<span class=hl-g>Punjab Kings won by 3 wickets</span>",
+      extra:"📍 Maharaja Yadavindra Singh Stadium, New Chandigarh",
+      result:"✅ PBKS won by 3 wkts", listen:false
+    },
+    {
+      label:"IPL 2026 · 2nd Match", badge:"completed",
+      team1:{flag:"💜",name:"KKR",score:"220",wkts:"4",overs:"20.0 ov"},
+      team2:{flag:"🔵",name:"MI",score:"224",wkts:"4",overs:"19.1 ov",winner:true},
+      status:"<span class=hl-g>Mumbai Indians won by 6 wickets</span>",
+      extra:"📍 Eden Gardens, Kolkata",
+      result:"✅ MI won by 6 wkts", listen:false
+    },
+    {
+      label:"IPL 2026 · 1st Match", badge:"completed",
+      team1:{flag:"🔴",name:"RCB",score:"",wkts:"",overs:"",winner:true},
+      team2:{flag:"🟠",name:"SRH",score:"",wkts:"",overs:""},
+      status:"<span class=hl-g>Royal Challengers Bengaluru won by 6 wickets</span>",
+      extra:"📍 M. Chinnaswamy Stadium, Bengaluru",
+      result:"✅ RCB won by 6 wkts", listen:false
     },
     {
       label:"AUS Women in WI · 2nd ODI", badge:"completed",
@@ -347,23 +362,40 @@ const matchData = {
       status:"<span class=hl-g>Australia Women won by 90 runs</span>",
       extra:"📍 Warner Park, Basseterre, St Kitts",
       result:"✅ AUS Women won by 90 runs", listen:false
-    },
-    {
-      label:"Sheffield Shield · Final", badge:"completed",
-      team1:{flag:"🔴",name:"South Aust",score:"198 & 258",wkts:"",overs:""},
-      team2:{flag:"🔵",name:"Victoria",score:"261 & 139",wkts:"",overs:"T:196",winner:true},
-      status:"<span class=hl-g>Victoria won</span> · Junction Oval, Melbourne",
-      extra:"📍 Junction Oval, Melbourne",
-      result:"✅ Victoria won", listen:false
     }
   ],
   get ipl() { return [...this.live,...this.upcoming,...this.completed].filter(m=>m.label.includes("IPL")); },
   get intl() { return [...this.live,...this.upcoming,...this.completed].filter(m=>!m.label.includes("IPL")&&!m.label.includes("PSL")); }
 };
 
+// Returns a short series tag for display in match cards
+function _seriesTag(m){
+  const lbl=m.label;
+  if(lbl.includes("IPL")) return "IPL";
+  if(lbl.includes("PSL")) return "PSL";
+  if(lbl.includes("BBL")) return "BBL";
+  if(lbl.includes("CPL")) return "CPL";
+  if(lbl.includes("SA20")) return "SA20";
+  if(lbl.includes("ILT20")) return "ILT20";
+  // International: show "T1 vs T2" using team abbreviations
+  return m.team1.name+" vs "+m.team2.name;
+}
+
+// Sort priority: 0=IPL, 1=Mens Intl, 2=PSL, 3=Womens
+function _matchPriority(m){
+  const lbl=m.label;
+  const t1=m.team1.name, t2=m.team2.name;
+  if(lbl.includes("IPL")) return 0;
+  if(lbl.includes("PSL")) return 2;
+  if(t1.includes("-W")||t2.includes("-W")||lbl.toLowerCase().includes("women")) return 3;
+  return 1; // mens international
+}
+
 function renderMatches(tab) {
   const list = document.getElementById("matchList");
-  const matches = matchData[tab] || [];
+  const raw = matchData[tab] || [];
+  // Sort: IPL(0) → Mens Intl(1) → PSL(2) → Womens(3)
+  const matches = [...raw].sort((a,b)=>_matchPriority(a)-_matchPriority(b));
   if (!matches.length) {
     list.innerHTML="<div class=empty-state><div class=empty-icon>🏟️</div><div class=empty-title>No matches here</div><div class=empty-sub>Check back soon</div></div>";
     return;
@@ -372,7 +404,8 @@ function renderMatches(tab) {
     const s1 = m.team1.score ? "<div class=score-main"+(m.team1.winner?" winner":"")+">"+m.team1.score+(m.team1.wkts?" <span>/ "+m.team1.wkts+"</span>":"")+"</div><div class=score-overs>"+m.team1.overs+"</div>" : "";
     const s2 = m.team2.score ? "<div class=score-main"+(m.team2.winner?" winner":"")+">"+m.team2.score+(m.team2.wkts?" <span>/ "+m.team2.wkts+"</span>":"")+"</div><div class=score-overs>"+m.team2.overs+"</div>" : "";
     const badge = m.badge==="live" ? "<div class=live-dot>LIVE</div>" : m.badge==="upcoming" ? "<div class=upcoming-badge>⏳ UPCOMING</div>" : "<div class=completed-badge>✅ DONE</div>";
-    return "<div class=match-card data-lbl='"+m.label+"' onclick='openMatchDetail(this.dataset.lbl)' style='cursor:pointer'><div class=match-meta-row><div class=match-type>"+m.label+"</div>"+badge+"</div><div class=teams-row><div class=team-block><div class=team-flag-name><span class=team-flag>"+m.team1.flag+"</span><span>"+m.team1.name+"</span></div><div class=team-score-line>"+s1+"</div></div><div class=vs-block><div class=vs-text>vs</div></div><div class='team-block right'><div class=team-flag-name><span>"+m.team2.name+"</span><span class=team-flag>"+m.team2.flag+"</span></div><div class=team-score-line>"+s2+"</div></div></div><div class=match-status>"+m.status+"<br>"+m.extra+(m.result?"<div class=result-banner>"+m.result+"</div>":"")+"</div></div>";
+    const tag = _seriesTag(m);
+    return "<div class=match-card data-lbl='"+m.label+"' onclick='openMatchDetail(this.dataset.lbl)' style='cursor:pointer'><div class=match-meta-row><div class=match-type>"+tag+"</div>"+badge+"</div><div class=teams-row><div class=team-block><div class=team-flag-name><span class=team-flag>"+m.team1.flag+"</span><span>"+m.team1.name+"</span></div><div class=team-score-line>"+s1+"</div></div><div class=vs-block><div class=vs-text>vs</div></div><div class='team-block right'><div class=team-flag-name><span>"+m.team2.name+"</span><span class=team-flag>"+m.team2.flag+"</span></div><div class=team-score-line>"+s2+"</div></div></div><div class=match-status>"+m.status+"<br>"+m.extra+(m.result?"<div class=result-banner>"+m.result+"</div>":"")+"</div></div>";
   }).join("");
 }
 
@@ -705,6 +738,7 @@ function _renderRibbon(d){
 
 // ── MATCH DETAIL ──
 function openMatchDetail(label){
+  _unlockAudio(); // must be sync inside the click handler so audio is unlocked before setTimeout fires
   const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
   const m=all.find(x=>x.label===label);
   if(!m)return;
@@ -933,51 +967,67 @@ async function fetchLiveScores(){
     const r=await fetch(`${CRICKET_API_URL}/currentMatches?apikey=${CRICKET_API_KEY}&offset=0`);
     if(!r.ok) throw new Error("HTTP "+r.status);
     const data=await r.json();
-    if(data.status!=="success"||!Array.isArray(data.data)||!data.data.length) return;
+    if(data.status!=="success"||!Array.isArray(data.data)) return;
 
-    const newLive=[],newUpcoming=[],newCompleted=[];
+    const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
+    let changed=false;
+
+    // Helper: check if two team name strings share a significant word
+    function _namesMatch(a,b){
+      const aw=a.toLowerCase().split(/\s+/).filter(w=>w.length>3);
+      return aw.some(w=>b.toLowerCase().includes(w));
+    }
 
     data.data.forEach(m=>{
       const t1n=(m.teams&&m.teams[0])||"";
       const t2n=(m.teams&&m.teams[1])||"";
-      const s1=m.score&&m.score.find(s=>s.inning&&s.inning.toLowerCase().includes(t1n.toLowerCase()));
-      const s2=m.score&&m.score.find(s=>s.inning&&s.inning.toLowerCase().includes(t2n.toLowerCase()));
       const isLive=m.matchStarted&&!m.matchEnded;
       const isDone=m.matchEnded;
 
-      const obj={
-        label:m.name||`${t1n} vs ${t2n}`,
-        badge:isLive?"live":(isDone?"completed":"upcoming"),
-        team1:{
-          flag:_teamFlag(t1n),name:t1n,
-          score:s1?String(s1.r):"",wkts:s1?String(s1.w):"",
-          overs:s1?`${s1.o} ov`:"",winner:false
-        },
-        team2:{
-          flag:_teamFlag(t2n),name:t2n,
-          score:s2?String(s2.r):"",wkts:s2?String(s2.w):"",
-          overs:s2?`${s2.o} ov`:"",winner:false
-        },
-        status:m.status||"",
-        extra:m.venue?`📍 ${m.venue}`:"",
-        result:isDone?`✅ ${m.status}`:"",
-        listen:false
-      };
+      // Find existing entry by team name match (preserves label so BBB still works)
+      const existing=all.find(e=>_namesMatch(t1n,e.team1.name)&&_namesMatch(t2n,e.team2.name));
 
-      if(isLive) newLive.push(obj);
-      else if(isDone) newCompleted.push(obj);
-      else newUpcoming.push(obj);
+      if(existing){
+        // Update score in place — never change the label
+        const s1=m.score&&m.score.find(s=>s.inning&&_namesMatch(t1n,s.inning));
+        const s2=m.score&&m.score.find(s=>s.inning&&_namesMatch(t2n,s.inning));
+        if(s1){existing.team1.score=String(s1.r);existing.team1.wkts=String(s1.w);existing.team1.overs=s1.o+" ov";}
+        if(s2){existing.team2.score=String(s2.r);existing.team2.wkts=String(s2.w);existing.team2.overs=s2.o+" ov";}
+        if(isDone&&existing.badge!=="completed"){
+          existing.badge="completed";existing.result="✅ "+m.status;
+          // Move from live/upcoming to completed
+          matchData.live=matchData.live.filter(x=>x!==existing);
+          matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
+          if(!matchData.completed.includes(existing)) matchData.completed.unshift(existing);
+        } else if(isLive&&existing.badge!=="live"){
+          existing.badge="live";
+          matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
+          matchData.completed=matchData.completed.filter(x=>x!==existing);
+          if(!matchData.live.includes(existing)) matchData.live.unshift(existing);
+        }
+        existing.status=m.status||existing.status;
+        changed=true;
+      } else if(isLive){
+        // Only add quality matches — franchise leagues or proper international matches
+        const seriesStr=((m.name||"")+" "+(m.series||"")).toLowerCase();
+        const teamsStr=(m.teams||[]).join(" ").toLowerCase();
+        const isFranchise=["ipl","psl","bbl","cpl","sa20","ilt20","mlc","t20 blast","the hundred","vitality blast"].some(l=>seriesStr.includes(l));
+        const intlTeams=["india","pakistan","australia","england","new zealand","south africa","west indies","sri lanka","bangladesh","afghanistan","zimbabwe","ireland","scotland","netherlands","namibia","uae","oman","png","usa","canada","kenya","nepal national","new zealand"];
+        const intlCount=intlTeams.filter(t=>teamsStr.includes(t)).length;
+        if(!isFranchise&&intlCount<2) return; // skip domestic/low-quality matches
+        const s1=m.score&&m.score.find(s=>s.inning&&_namesMatch(t1n,s.inning));
+        const s2=m.score&&m.score.find(s=>s.inning&&_namesMatch(t2n,s.inning));
+        matchData.live.push({
+          label:m.name||`${t1n} vs ${t2n}`, badge:"live",
+          team1:{flag:_teamFlag(t1n),name:t1n,score:s1?String(s1.r):"",wkts:s1?String(s1.w):"",overs:s1?s1.o+" ov":""},
+          team2:{flag:_teamFlag(t2n),name:t2n,score:s2?String(s2.r):"",wkts:s2?String(s2.w):"",overs:s2?s2.o+" ov":""},
+          status:m.status||"🔴 LIVE",extra:m.venue?`📍 ${m.venue}`:"",result:"",listen:false
+        });
+        changed=true;
+      }
     });
 
-    if(newLive.length||newUpcoming.length||newCompleted.length){
-      if(newLive.length) matchData.live=newLive;
-      if(newUpcoming.length) matchData.upcoming=newUpcoming;
-      if(newCompleted.length) matchData.completed=newCompleted;
-      renderMatches(currentTab);
-      // Update last-refreshed indicator
-      const el=document.getElementById("liveRefreshTs");
-      if(el) el.textContent="Updated "+new Date().toLocaleTimeString();
-    }
+    if(changed) renderMatches(currentTab);
   }catch(e){
     console.warn("Score fetch failed, using cached data:",e);
   }
