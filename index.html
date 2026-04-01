@@ -580,7 +580,7 @@ const matchDetails = {
 // ── CAMB AI TTS ENGINE ──
 const CAMB_KEY="cb4dd2e2-d591-47ec-84ab-74461d004cec";
 const CAMB_API="https://client.camb.ai/apis";
-let _cambVoices=[]; // [jackId, bradId] resolved at runtime
+let _cambVoices=[]; // [jakeId, bradId] resolved at runtime
 const _ttsCache={}; // key → audio URL string
 let _currentAudio=null;
 
@@ -590,9 +590,9 @@ async function _initVoices(){
     const r=await fetch(CAMB_API+"/list-voices",{headers:{"x-api-key":CAMB_KEY}});
     const list=await r.json();
     const voices=Array.isArray(list)?list:(list.voices||[]);
-    const jack=voices.find(v=>/jack/i.test(v.voice_name));
+    const jake=voices.find(v=>/jake/i.test(v.voice_name));
     const brad=voices.find(v=>/brad/i.test(v.voice_name));
-    if(jack) _cambVoices.push(jack.id);
+    if(jake) _cambVoices.push(jake.id);
     if(brad) _cambVoices.push(brad.id);
     if(!_cambVoices.length) _cambVoices=[147320]; // fallback
   }catch(e){ _cambVoices=[147320]; }
@@ -838,11 +838,16 @@ async function advancePlay(){
     else if(i<idx) el.classList.add("done");
   });
 
+  // Voice rule: Brad(1) for W & 6s, Jake(0) for 4s & milestones, alternate for others
+  function _voiceFor(type,i){ return (type==="W"||type==="6")? 1 : (type==="4"||type==="50"||type==="100")? 0 : i%2; }
+  const voiceIdx=_voiceFor(entry.type,idx);
+
   // Pre-fetch next in background
   const nk=detKey+":"+detStyle+":"+(idx+1);
   if(idx+1<d.bbb.length&&!_ttsCache[nk]){
-    const nText=d.bbb[idx+1][detStyle]||d.bbb[idx+1].dramatic||d.bbb[idx+1].jaffa||"";
-    _fetchTTS(nText,idx+1).then(u=>{_ttsCache[nk]=u;}).catch(()=>{});
+    const nEntry=d.bbb[idx+1];
+    const nText=nEntry[detStyle]||nEntry.dramatic||nEntry.jaffa||"";
+    _fetchTTS(nText,_voiceFor(nEntry.type,idx+1)).then(u=>{_ttsCache[nk]=u;}).catch(()=>{});
   }
 
   const ck=detKey+":"+detStyle+":"+idx;
@@ -853,7 +858,7 @@ async function advancePlay(){
     if(!_ttsCache[ck]){
       if(jEl) jEl.textContent="🎙️ Generating…";
       document.getElementById("ssCommStatus").textContent="⏳";
-      _ttsCache[ck]=await _fetchTTS(jText,idx);
+      _ttsCache[ck]=await _fetchTTS(jText,voiceIdx);
       if(jEl) jEl.textContent="🎙️ "+jText;
     }
     document.getElementById("ssCommStatus").textContent="▶";
@@ -879,6 +884,87 @@ function stopDetailPlay(){
   document.getElementById("ssCommStatus").textContent="";
   document.querySelectorAll(".bbb-item").forEach(el=>el.classList.remove("playing","done"));
 }
+
+// ── LIVE SCORE FETCHING ──
+const CRICKET_API_KEY="b1d83cfb-216e-4ef4-8300-41ab9645cffa";
+const CRICKET_API_URL="https://api.cricketdata.org/api/v1";
+
+function _teamFlag(name){
+  const map={
+    "India":"🇮🇳","Pakistan":"🇵🇰","Australia":"🇦🇺","England":"🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "South Africa":"🇿🇦","New Zealand":"🇳🇿","West Indies":"🏝️","Sri Lanka":"🇱🇰",
+    "Bangladesh":"🇧🇩","Afghanistan":"🇦🇫","Zimbabwe":"🇿🇼","Ireland":"🇮🇪",
+    "Nepal":"🇳🇵","UAE":"🇦🇪","Oman":"🇴🇲","Scotland":"🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "CSK":"🟡","RR":"🩷","MI":"🔵","RCB":"🔴","KKR":"💜","DC":"🔵",
+    "SRH":"🟠","PBKS":"🔴","GT":"🔵","LSG":"🟡","MI-W":"🔵","RCB-W":"🔴",
+    "AUS":"🇦🇺","IND":"🇮🇳","PAK":"🇵🇰","ENG":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","NZ":"🇳🇿",
+    "SA":"🇿🇦","WI":"🏝️","SL":"🇱🇰","BAN":"🇧🇩","AFG":"🇦🇫",
+    "AUS-W":"🇦🇺","IND-W":"🇮🇳","WI-W":"🏝️","ENG-W":"🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "United":"🔴","Zalmi":"🟡","Gladiators":"🟢","Kings":"🔵","Qalandars":"🟢",
+    "Sultans":"🟣","Koshi":"🏔️","Police":"🚔"
+  };
+  for(const[k,v] of Object.entries(map)){if(name.includes(k))return v;}
+  return "🏏";
+}
+
+async function fetchLiveScores(){
+  try{
+    const r=await fetch(`${CRICKET_API_URL}/currentMatches?apikey=${CRICKET_API_KEY}&offset=0`);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const data=await r.json();
+    if(data.status!=="success"||!Array.isArray(data.data)||!data.data.length) return;
+
+    const newLive=[],newUpcoming=[],newCompleted=[];
+
+    data.data.forEach(m=>{
+      const t1n=(m.teams&&m.teams[0])||"";
+      const t2n=(m.teams&&m.teams[1])||"";
+      const s1=m.score&&m.score.find(s=>s.inning&&s.inning.toLowerCase().includes(t1n.toLowerCase()));
+      const s2=m.score&&m.score.find(s=>s.inning&&s.inning.toLowerCase().includes(t2n.toLowerCase()));
+      const isLive=m.matchStarted&&!m.matchEnded;
+      const isDone=m.matchEnded;
+
+      const obj={
+        label:m.name||`${t1n} vs ${t2n}`,
+        badge:isLive?"live":(isDone?"completed":"upcoming"),
+        team1:{
+          flag:_teamFlag(t1n),name:t1n,
+          score:s1?String(s1.r):"",wkts:s1?String(s1.w):"",
+          overs:s1?`${s1.o} ov`:"",winner:false
+        },
+        team2:{
+          flag:_teamFlag(t2n),name:t2n,
+          score:s2?String(s2.r):"",wkts:s2?String(s2.w):"",
+          overs:s2?`${s2.o} ov`:"",winner:false
+        },
+        status:m.status||"",
+        extra:m.venue?`📍 ${m.venue}`:"",
+        result:isDone?`✅ ${m.status}`:"",
+        listen:false
+      };
+
+      if(isLive) newLive.push(obj);
+      else if(isDone) newCompleted.push(obj);
+      else newUpcoming.push(obj);
+    });
+
+    if(newLive.length||newUpcoming.length||newCompleted.length){
+      if(newLive.length) matchData.live=newLive;
+      if(newUpcoming.length) matchData.upcoming=newUpcoming;
+      if(newCompleted.length) matchData.completed=newCompleted;
+      renderMatches(currentTab);
+      // Update last-refreshed indicator
+      const el=document.getElementById("liveRefreshTs");
+      if(el) el.textContent="Updated "+new Date().toLocaleTimeString();
+    }
+  }catch(e){
+    console.warn("Score fetch failed, using cached data:",e);
+  }
+}
+
+// Fetch on load, then every 30 seconds
+fetchLiveScores();
+setInterval(fetchLiveScores,30000);
 
 </script>
 </body>
