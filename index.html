@@ -1079,11 +1079,14 @@ function openMatchDetail(label){
   document.getElementById("matchDetailScreen").classList.remove("slide-in");
   document.getElementById("matchesScreen").classList.add("hidden");
   history.pushState({screen:"detail"},"");
-  if(d&&d.bbb&&d.bbb.length){
-    // Hardcoded data — auto-start commentary
+  if(m&&m.badge==="live"&&m.apiId){
+    // Live match — start real-time ball-by-ball commentary engine
+    setTimeout(()=>_startLiveCommentary(m,"dramatic"),400);
+  } else if(d&&d.bbb&&d.bbb.length){
+    // Completed match with hardcoded BBB — auto-start highlight commentary
     setTimeout(()=>startComm("dramatic",document.getElementById("ssBtnDramatic")),400);
   } else if(!d&&m&&m.apiId){
-    // No hardcoded data but we have an API ID — auto-fetch scorecard/BBB
+    // Completed match, no hardcoded data — auto-fetch scorecard from API
     _autoFetchMatchDetails(label, m.apiId);
   }
 }
@@ -1149,6 +1152,13 @@ function startComm(style, btnEl){
   // Switch style buttons
   document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("active"));
   if(btnEl) btnEl.classList.add("active");
+  // If live commentary is active, just change the style — don't restart the polling loop
+  if(_liveState.active){
+    _liveState.style=style;
+    document.getElementById("ssCommStatus").textContent="🔴";
+    if(btnEl) btnEl.classList.add("loading");
+    return;
+  }
   // If same style and already playing, treat as pause/stop
   if(detPlaying && style===detStyle){stopDetailPlay();return;}
   // Switch style and restart
@@ -1240,11 +1250,145 @@ async function advancePlay(){
 
 function stopDetailPlay(){
   detPlaying=false;
+  _stopLiveCommentary(); // also stop live engine if running
   if(detTimer){clearTimeout(detTimer);detTimer=null;}
   if(_currentAudio){try{_currentAudio.pause();}catch(e){}_currentAudio=null;}
   document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("loading"));
   document.getElementById("ssCommStatus").textContent="";
   document.querySelectorAll(".bbb-item").forEach(el=>el.classList.remove("playing","done"));
+}
+
+// ── LIVE BALL-BY-BALL COMMENTARY ENGINE ──
+// Polls /match every 12s, detects score delta, generates Camb AI audio per delivery.
+let _liveState={
+  active:false, apiId:null, style:"dramatic",
+  pollTimer:null, lastRuns:-1, lastWkts:-1, lastOvers:-1,
+  entryCount:0, team1:"", team2:""
+};
+
+function _startLiveCommentary(matchObj, style){
+  _stopLiveCommentary();
+  _liveState={
+    active:true, apiId:matchObj.apiId, style:style||"dramatic",
+    pollTimer:null, lastRuns:-1, lastWkts:-1, lastOvers:-1,
+    entryCount:0, team1:matchObj.team1.name, team2:matchObj.team2.name
+  };
+  document.getElementById("ssCommStatus").textContent="🔴";
+  const btn=document.querySelector(".ss-style-btn.active");
+  if(btn) btn.classList.add("loading");
+  // Switch to BBB tab and show live feed
+  detTab="bbb";
+  document.querySelectorAll(".det-tab").forEach((t,i)=>t.classList.toggle("active",i===0));
+  document.getElementById("detBody").innerHTML=
+    '<div id="liveFeed" style="display:flex;flex-direction:column;gap:10px;padding:12px"></div>'+
+    '<div id="liveWaiting" style="padding:24px;text-align:center;color:#888;font-size:14px">🔴 Listening for next delivery…</div>';
+  _pollLiveCommentary();
+}
+
+function _stopLiveCommentary(){
+  _liveState.active=false;
+  if(_liveState.pollTimer){clearTimeout(_liveState.pollTimer);_liveState.pollTimer=null;}
+  if(_currentAudio){try{_currentAudio.pause();}catch(e){}_currentAudio=null;}
+  document.getElementById("ssCommStatus").textContent="";
+  document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("loading"));
+}
+
+async function _pollLiveCommentary(){
+  if(!_liveState.active) return;
+  try{
+    // Fetch detailed match data — try /match first for batsmen/bowler, fall back to currentMatches
+    const r=await fetch(`${CRICKET_API_URL}/match?apikey=${CRICKET_API_KEY}&id=${_liveState.apiId}`);
+    const json=await r.json();
+    if(json.status!=="success"||!json.data) throw new Error("no data");
+    const md=json.data;
+    const scores=md.score||[];
+    const inn=scores[scores.length-1]||{};
+    const runs=inn.r||0, wkts=inn.w||0, overs=parseFloat(inn.o)||0;
+    // Try to extract current batsman & bowler from whatever fields the API returns
+    const striker=md.striker?.name||md.currentBatsmen?.[0]?.name||
+                  md.batsmanRuns?.[0]?.batName||md.batTeamDetails?.batsmenData?.[0]?.batName||"";
+    const bowler=md.bowler?.name||md.currentBowler?.name||
+                 md.bowlerRuns?.[0]?.bowlName||"";
+
+    if(md.matchEnded){
+      _stopLiveCommentary();
+      const w=document.getElementById("liveWaiting");
+      if(w) w.textContent="✅ Match over — loading full scorecard…";
+      setTimeout(()=>_autoFetchMatchDetails(detKey,_liveState.apiId),1000);
+      return;
+    }
+
+    if(_liveState.lastRuns<0){
+      // First poll — baseline only, no commentary yet
+      _liveState.lastRuns=runs; _liveState.lastWkts=wkts; _liveState.lastOvers=overs;
+    } else {
+      const rd=runs-_liveState.lastRuns;
+      const wd=wkts-_liveState.lastWkts;
+      if(wd>0||rd>0){
+        const ev=_buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler);
+        if(ev){
+          _liveState.lastRuns=runs; _liveState.lastWkts=wkts; _liveState.lastOvers=overs;
+          const cText=ev[_liveState.style]||ev.dramatic;
+          _addLiveFeedEntry(ev.type,ev.text,cText);
+          const vi=(ev.type==="WICKET"||ev.type==="SIX")?1:(ev.type==="FOUR")?0:_liveState.entryCount%2;
+          _liveState.entryCount++;
+          const ck="live:"+ev.type+":"+runs+":"+wkts;
+          try{
+            if(!_ttsCache[ck]) _ttsCache[ck]=await _fetchTTS(cText,vi);
+            if(_liveState.active) await _playAudio(_ttsCache[ck]);
+          }catch(e){}
+        }
+      }
+    }
+    const w=document.getElementById("liveWaiting");
+    if(w) w.textContent="🔴 "+runs+"/"+wkts+" ("+overs.toFixed(1)+" ov) · Listening for next delivery…";
+  }catch(e){ console.warn("Live poll error:",e); }
+  if(_liveState.active) _liveState.pollTimer=setTimeout(_pollLiveCommentary,12000);
+}
+
+function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
+  const score=runs+"/"+wkts+" ("+overs.toFixed(1)+" ov)";
+  const s=striker?striker.split(" ").pop():_liveState.team1;
+  const b=bowler?bowler.split(" ").pop():"";
+  if(wd>0){
+    return{type:"WICKET",
+      text:"OUT! "+(striker||"Wicket")+" falls! "+_liveState.team2+" strike! "+score,
+      dramatic:"WICKET! "+s+" OUT! "+(b?""+b+" ne kiya!":"")+" Kya moment yaar! "+score,
+      funny:(striker||"The batter")+" has departed. The dressing room is having complicated feelings. "+score,
+      analytical:"Wicket at "+score+". "+(bowler?bowler+" claims it. ":"")+"A pivotal moment."};
+  } else if(rd>=6){
+    return{type:"SIX",
+      text:"SIX! MAXIMUM! "+(striker||_liveState.team1)+" launches it! "+score,
+      dramatic:"CHHA! SIX! "+s+" ne maar diya! Stadium jhoom utha! "+score,
+      funny:(striker||"The batter")+" has sent that to the car park. Absolute scenes. "+score,
+      analytical:"Maximum hit. "+score+". "+rd+" runs from the delivery. Pure power."};
+  } else if(rd>=4){
+    return{type:"FOUR",
+      text:"FOUR! Boundary! "+(striker?striker+" finds the gap! ":"")+score,
+      dramatic:"CHAAR! Boundary! "+s+" ne maar diya! "+score,
+      funny:"Four runs. The fielder didn't even move. Respect. "+score,
+      analytical:"Boundary. "+score+". "+rd+" runs from the delivery."};
+  } else if(rd>0){
+    return{type:"NORMAL",
+      text:rd+" run"+(rd!==1?"s":"")+" off that delivery. "+score,
+      dramatic:rd+" run"+(rd!==1?"s":"")+" — tick tick tick! "+score,
+      funny:rd+" run"+(rd!==1?"s":")+". Efficient if not exciting. "+score,
+      analytical:rd+" run"+(rd!==1?"s":"")+" taken. "+score+"."};
+  }
+  return null;
+}
+
+function _addLiveFeedEntry(type,text,cText){
+  const feed=document.getElementById("liveFeed");
+  if(!feed) return;
+  const div=document.createElement("div");
+  div.className="bbb-item playing";
+  div.innerHTML="<div class=bbb-meta><span class='bbb-badge "+type+"'>"+type+"</span></div>"+
+    "<div class=bbb-text>"+text+"</div>"+
+    "<div class=bbb-jaffa>🎙️ "+cText+"</div>";
+  feed.appendChild(div);
+  div.scrollIntoView({behavior:"smooth",block:"nearest"});
+  setTimeout(()=>{div.classList.remove("playing");div.classList.add("done");},4000);
 }
 
 // ── AUTO-FETCH BBB / SCORECARD FOR FUTURE MATCHES ──
