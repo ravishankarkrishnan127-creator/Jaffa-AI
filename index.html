@@ -1385,6 +1385,11 @@ function switchDetTab(tab,el){
   detTab=tab;
   document.querySelectorAll(".det-tab").forEach(t=>t.classList.remove("active"));
   el.classList.add("active");
+  // For live matches: switching to Scorecard tab triggers a partial scorecard fetch
+  if(tab==="scorecard"&&_liveState.active&&_liveState.apiId&&!matchDetails[detKey]){
+    _autoFetchMatchDetails(detKey,_liveState.apiId);
+    return; // _autoFetchMatchDetails calls renderDetBody when done
+  }
   renderDetBody();
   if(tab==="chat"&&!_chatBC) _initChat();
 }
@@ -1642,6 +1647,9 @@ async function advancePlay(){
   const jText=entry._syn?"":entry[detStyle]||entry.dramatic||"";
 
   // Highlight current item (DOM is reversed — item 0 at bottom)
+  // Lock scroll position so browser doesn't jump when .playing class changes
+  const _bbbCont=document.getElementById("detBody");
+  const _savedScroll=_bbbCont?_bbbCont.scrollTop:0;
   const allItems=document.querySelectorAll(".bbb-item");
   const domIdx=allItems.length-1-idx;
   allItems.forEach((el,di)=>{
@@ -1649,6 +1657,7 @@ async function advancePlay(){
     if(di===domIdx){el.classList.add("playing");}
     else if(di>domIdx) el.classList.add("done");
   });
+  if(_bbbCont) _bbbCont.scrollTop=_savedScroll;
 
   // Voice: Brad/Fenrir(1) for wickets & sixes, Jake/Puck(0) for fours & milestones
   const voiceIdx=(entry.type==="WICKET"||entry.type==="SIX")?1:(entry.type==="FOUR"||entry.type==="FIFTY"||entry.type==="HUNDRED")?0:idx%2;
@@ -1721,7 +1730,6 @@ function stopDetailPlay(){
   if(detTimer){clearTimeout(detTimer);detTimer=null;}
   if(_currentAudio){try{_currentAudio.stop();}catch(e){try{_currentAudio.pause();}catch(e2){}}_currentAudio=null;}
   document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("loading","active"));
-  document.querySelector(".ss-style-btn")?.classList.add("active");
   document.getElementById("ssCommStatus").textContent="";
   document.querySelectorAll(".bbb-item").forEach(el=>el.classList.remove("playing","done"));
 }
@@ -1925,21 +1933,21 @@ async function _autoFetchMatchDetails(label, apiId){
             dramatic:`CENTURY! ${last} ne SAINKAD laga di! ${runs} runs, ${sixes} sixes — yeh toh beast mode hai!`,
             funny:`${name} has just scored ${runs}. The opposition has requested a recount. Request denied.`,
             analytical:`${name} reaches ${runs} off ${balls} (SR ${sr}). ${fours} fours and ${sixes} sixes. ${dis}.`,
-            score:`${runs}(${balls})`});
+            score:`${batObj.team} ${runs}(${balls})`});
         } else if(runs>=50){
           built.bbb.push({over:innLabel,type:"FIFTY",
             text:`${name} brings up a fine fifty — ${runs} off ${balls} balls, ${fours}x4, ${sixes}x6.`,
             dramatic:`FIFTY! ${last} ne half-century maar di! ${runs} off ${balls} — top knock yaar!`,
             funny:`${name} has 50. Their teammates are relieved. Their opponents are not.`,
             analytical:`${name} scores ${runs} off ${balls} (SR ${sr}). ${fours} fours and ${sixes} sixes. ${dis}.`,
-            score:`${runs}(${balls})`});
+            score:`${batObj.team} ${runs}(${balls})`});
         } else if(sixes>=3){
           built.bbb.push({over:innLabel,type:"SIX",
             text:`${name} smashes ${sixes} sixes in this knock — ${runs} off ${balls}, pure power!`,
             dramatic:`${sixes} SIXES! ${last} ne bowlers ko stadium ke bahar bhej diya!`,
             funny:`${sixes} sixes from ${name}. The ball retrieval crew is filing for overtime.`,
             analytical:`${name} hits ${sixes} maximums (${runs} off ${balls}, SR ${sr}). ${dis}.`,
-            score:`${runs}(${balls})`});
+            score:`${batObj.team} ${runs}(${balls})`});
         }
       });
       bowling.filter(bw=>(bw.w||0)>=2).forEach(bw=>{
@@ -1950,7 +1958,7 @@ async function _autoFetchMatchDetails(label, apiId){
           dramatic:`${bwLast} ne ${bw.w} wicket liye! Kya bowling yaar!`,
           funny:`${bwName}: ${bw.w}/${bw.r}. The batters have filed a formal complaint. It was denied.`,
           analytical:`${bwName} finishes with ${bw.w}/${bw.r} off ${bw.o} overs (eco ${bw.eco}). A key contribution.`,
-          score:`${bw.w}/${bw.r} (${bw.o})`});
+          score:`${batObj.team} ${bw.w}/${bw.r} (${bw.o})`});
       });
     });
 
