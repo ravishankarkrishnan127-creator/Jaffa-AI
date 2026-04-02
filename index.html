@@ -390,12 +390,21 @@ function _matchPriority(m){
   if(t1.includes("-W")||t2.includes("-W")||lbl.toLowerCase().includes("women")) return 3;
   return 1; // mens international
 }
+// Extract match number for recency sort within a series (higher = more recent)
+function _matchNumber(m){
+  const n=m.label.match(/(\d+)(?:st|nd|rd|th)?\s*Match/i);
+  return n?parseInt(n[1]):0;
+}
 
 function renderMatches(tab) {
   const list = document.getElementById("matchList");
   const raw = matchData[tab] || [];
-  // Sort: IPL(0) → Mens Intl(1) → PSL(2) → Womens(3)
-  const matches = [...raw].sort((a,b)=>_matchPriority(a)-_matchPriority(b));
+  // Sort: by series priority, then most recent match first within each series
+  const matches = [...raw].sort((a,b)=>{
+    const pd=_matchPriority(a)-_matchPriority(b);
+    if(pd!==0) return pd;
+    return _matchNumber(b)-_matchNumber(a); // higher match number = more recent = first
+  });
   if (!matches.length) {
     list.innerHTML="<div class=empty-state><div class=empty-icon>🏟️</div><div class=empty-title>No matches here</div><div class=empty-sub>Check back soon</div></div>";
     return;
@@ -964,14 +973,27 @@ async function _fetchTTS(text,voiceIdx){
 }
 
 async function _playAudio(url){
-  if(_currentAudio){try{_currentAudio.pause();}catch(e){} _currentAudio=null;}
-  return new Promise((resolve,reject)=>{
-    const a=new Audio(url);
-    a.crossOrigin="anonymous";
-    _currentAudio=a;
-    a.onended=resolve;
-    a.onerror=()=>resolve(); // resolve on error so chain continues
-    a.play().catch(()=>resolve());
+  // Stop any current audio
+  if(_currentAudio){try{_currentAudio.stop();}catch(e){try{_currentAudio.pause();}catch(e2){}} _currentAudio=null;}
+  return new Promise(async(resolve)=>{
+    try{
+      // Use Web Audio API — once AudioContext is unlocked (via _unlockAudio in click handler),
+      // all audio played through it works regardless of timing. Bypasses autoplay policy.
+      if(!_audioCtx) _audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      if(_audioCtx.state==="suspended") await _audioCtx.resume();
+      const resp=await fetch(url);
+      if(!resp.ok) throw new Error("fetch "+resp.status);
+      const buf=await resp.arrayBuffer();
+      const decoded=await _audioCtx.decodeAudioData(buf);
+      const src=_audioCtx.createBufferSource();
+      src.buffer=decoded;
+      src.connect(_audioCtx.destination);
+      src.onended=resolve;
+      _currentAudio=src;
+      src.start(0);
+    }catch(e){
+      resolve(); // silent fail — chain continues to next entry
+    }
   });
 }
 
@@ -1126,13 +1148,24 @@ function _restoreChatHistory(){
   msgs.scrollTop=msgs.scrollHeight;
 }
 
+let _bbbImportantOnly=false;
+const _BBB_IMPORTANT=new Set(["WICKET","SIX","FOUR","FIFTY","HUNDRED"]);
+
 function renderBBB(){
   const d=matchDetails[detKey];
   if(!d||!d.bbb)return"<div style='padding:40px;text-align:center;color:#444'>Ball-by-ball coming soon</div>";
-  return d.bbb.map((b,i)=>{
+  const filterBtn="<div style='display:flex;gap:8px;padding:8px 12px 4px;border-bottom:1px solid #1a1a1a'>"+
+    "<button onclick='_bbbImportantOnly=false;renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:"+((!_bbbImportantOnly)?"#f59e0b":"#1a1a1a")+";color:"+((!_bbbImportantOnly)?"#000":"#888")+"'>All Events</button>"+
+    "<button onclick='_bbbImportantOnly=true;renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:((_bbbImportantOnly)?"#f59e0b":"#1a1a1a")+";color:"+((_bbbImportantOnly)?"#000":"#888")+"'>⭐ Key Moments</button></div>";
+  const filtered=_bbbImportantOnly?d.bbb.filter(b=>_BBB_IMPORTANT.has(b.type)):d.bbb;
+  // Descending order — most recent on top
+  const reversed=[...filtered].reverse();
+  const items=reversed.map((b,ri)=>{
+    const i=filtered.length-1-ri; // original index for IDs
     const jText=b[detStyle]||b.dramatic||b.jaffa||"";
     return "<div class='bbb-item' id='bbb"+i+"'><div class=bbb-meta><span class=bbb-over>"+b.over+"</span><span class='bbb-badge "+b.type+"'>"+b.type+"</span></div><div class=bbb-text>"+b.text+"</div><div class=bbb-jaffa id='bbbj"+i+"'>🎙️ "+jText+"</div><div class=bbb-score>"+b.score+"</div></div>";
   }).join("");
+  return filterBtn+items;
 }
 
 function renderScorecard(){
@@ -1175,6 +1208,26 @@ function startComm(style, btnEl){
     document.querySelectorAll(".det-tab").forEach((t,i)=>t.classList.toggle("active",i===0));
     renderDetBody();
   }
+  // Pre-fetch ALL entries in parallel so audio is ready when needed
+  // Camb AI takes ~10-50s per clip — firing all at once means they're all ready after one wait
+  function _voiceForType(type,i){ return (type==="WICKET"||type==="SIX")?1:(type==="FOUR"||type==="FIFTY"||type==="HUNDRED")?0:i%2; }
+  const d2=matchDetails[detKey];
+  if(d2&&d2.bbb){
+    d2.bbb.forEach((entry,i)=>{
+      const ck=detKey+":"+style+":"+i;
+      if(!_ttsCache[ck]){
+        const txt=entry[style]||entry.dramatic||"";
+        _fetchTTS(txt,_voiceForType(entry.type,i)).then(u=>{_ttsCache[ck]=u;}).catch(()=>{});
+      }
+    });
+    // Also pre-fetch Hindi intro
+    const ick="_hindi_intro_"+detKey;
+    if(!_ttsCache[ick]){
+      _fetchTTS("यार, मैच तो खत्म हो गया... लेकिन रुको! अब सुनो इस मैच के best highlights!",0)
+        .then(u=>{_ttsCache[ick]=u;}).catch(()=>{});
+    }
+  }
+
   // For completed matches, Jake introduces highlights in Hindi first
   const allM=[...matchData.live,...matchData.upcoming,...matchData.completed];
   const curM=allM.find(m=>m.label===detKey);
@@ -1332,11 +1385,11 @@ async function _pollLiveCommentary(){
           _addLiveFeedEntry(ev.type,ev.text,cText);
           const vi=(ev.type==="WICKET"||ev.type==="SIX")?1:(ev.type==="FOUR")?0:_liveState.entryCount%2;
           _liveState.entryCount++;
+          // Instant audio via Web Speech API (zero latency — plays the moment a delivery is detected)
+          _speakNow(cText, ev.type);
+          // Generate Camb AI in background for cache — if ready before next ball, use it next time
           const ck="live:"+ev.type+":"+runs+":"+wkts;
-          try{
-            if(!_ttsCache[ck]) _ttsCache[ck]=await _fetchTTS(cText,vi);
-            if(_liveState.active) await _playAudio(_ttsCache[ck]);
-          }catch(e){}
+          if(!_ttsCache[ck]) _fetchTTS(cText,vi).then(u=>{_ttsCache[ck]=u;}).catch(()=>{});
         }
       }
     }
@@ -1376,6 +1429,25 @@ function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
       analytical:rd+" run"+(rd!==1?"s":"")+" taken. "+score+"."};
   }
   return null;
+}
+
+// Instant TTS via browser Web Speech API — zero latency, used for live commentary
+function _speakNow(text, type){
+  try{
+    if(!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text);
+    u.rate = (type==="WICKET"||type==="SIX") ? 1.25 : 1.1;
+    u.pitch = (type==="WICKET"||type==="SIX") ? 1.3 : 1.05;
+    u.volume = 1.0;
+    // Pick best available voice
+    const voices=speechSynthesis.getVoices();
+    const pick=voices.find(v=>/en/i.test(v.lang)&&/(google|daniel|alex|rishi|moira|samantha)/i.test(v.name))
+              ||voices.find(v=>/en.*in/i.test(v.lang))
+              ||voices.find(v=>/en/i.test(v.lang));
+    if(pick) u.voice=pick;
+    speechSynthesis.speak(u);
+  }catch(e){}
 }
 
 function _addLiveFeedEntry(type,text,cText){
@@ -1522,8 +1594,17 @@ async function fetchLiveScores(){
     const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
     let changed=false;
 
-    // Helper: check if two team name strings share a significant word
+    // Map full IPL/international team names → abbreviations used in matchData
+    const _ABBR={"Lucknow Super Giants":"LSG","Delhi Capitals":"DC","Gujarat Titans":"GT",
+      "Punjab Kings":"PBKS","Chennai Super Kings":"CSK","Rajasthan Royals":"RR",
+      "Mumbai Indians":"MI","Royal Challengers Bengaluru":"RCB","Royal Challengers Bangalore":"RCB",
+      "Kolkata Knight Riders":"KKR","Sunrisers Hyderabad":"SRH","Rising Pune Supergiant":"RPS",
+      "Pune Warriors India":"PWI","Deccan Chargers":"DC","Kochi Tuskers":"KTK"};
+    function _norm(n){ return _ABBR[n]||n; }
+    // Check if two name strings refer to the same team (handles abbr vs full name)
     function _namesMatch(a,b){
+      const na=_norm(a).toLowerCase(), nb=_norm(b).toLowerCase();
+      if(na===nb||na.includes(nb)||nb.includes(na)) return true;
       const aw=a.toLowerCase().split(/\s+/).filter(w=>w.length>3);
       return aw.some(w=>b.toLowerCase().includes(w));
     }
