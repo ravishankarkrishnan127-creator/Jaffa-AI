@@ -1069,6 +1069,53 @@ function _unlockAudio(){
   try{if(window.speechSynthesis&&!speechSynthesis.getVoices().length) speechSynthesis.getVoices();}catch(e){}
 }
 
+// ── CROWD NOISE via Web Audio API ──
+// Generates procedural crowd noise — no external files needed.
+// type: "big" (wicket/six), "medium" (four), "ambient" (normal ball)
+function _playCrowdNoise(type){
+  try{
+    if(!_audioCtx) return;
+    if(_audioCtx.state==="suspended") _audioCtx.resume();
+    const ctx=_audioCtx;
+    const dur=type==="big"?2.8:type==="medium"?1.6:0.9;
+    const bufSize=Math.ceil(ctx.sampleRate*dur);
+    const buf=ctx.createBuffer(2,bufSize,ctx.sampleRate);
+    // Pink noise via Paul Kellett's method
+    for(let ch=0;ch<2;ch++){
+      const data=buf.getChannelData(ch);
+      let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+      for(let i=0;i<bufSize;i++){
+        const wh=Math.random()*2-1;
+        b0=0.99886*b0+wh*0.0555179; b1=0.99332*b1+wh*0.0750759;
+        b2=0.96900*b2+wh*0.1538520; b3=0.86650*b3+wh*0.3104856;
+        b4=0.55000*b4+wh*0.5329522; b5=-0.7616*b5-wh*0.0168980;
+        data[i]=(b0+b1+b2+b3+b4+b5+b6+wh*0.5362)/7;
+        b6=wh*0.115926;
+      }
+    }
+    const src=ctx.createBufferSource();
+    src.buffer=buf;
+    // Bandpass: crowd voice range ~300-3500 Hz
+    const bp=ctx.createBiquadFilter();
+    bp.type="bandpass"; bp.frequency.value=900; bp.Q.value=0.5;
+    // Master gain with envelope — swell up then fade
+    const gain=ctx.createGain();
+    const baseVol=type==="big"?0.38:type==="medium"?0.22:0.10;
+    gain.gain.setValueAtTime(0,ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(baseVol,ctx.currentTime+0.18);
+    if(type==="big"){
+      gain.gain.linearRampToValueAtTime(baseVol*1.3,ctx.currentTime+0.6);
+      gain.gain.linearRampToValueAtTime(baseVol*0.9,ctx.currentTime+1.4);
+      gain.gain.linearRampToValueAtTime(0,ctx.currentTime+dur);
+    } else {
+      gain.gain.linearRampToValueAtTime(baseVol,ctx.currentTime+dur*0.4);
+      gain.gain.linearRampToValueAtTime(0,ctx.currentTime+dur);
+    }
+    src.connect(bp); bp.connect(gain); gain.connect(ctx.destination);
+    src.start(ctx.currentTime); src.stop(ctx.currentTime+dur);
+  }catch(e){}
+}
+
 // ── INSTANT: Web Speech API (zero latency) ──
 function _speakNow(text,type){
   try{
@@ -1392,13 +1439,8 @@ function _expandBBB(dk){
         if(bat&&!batters.includes(bat)) batters.push(bat);
       }
     });
-    // Fallback: pull names from players list
-    if(!bowlers.length&&d.players){
-      d.players.filter(p=>p.icon==="🎯").forEach(p=>{ const n=p.name.split(" ").pop(); if(n) bowlers.push(n); });
-    }
-    if(!batters.length&&d.players){
-      d.players.filter(p=>p.icon==="🏏").forEach(p=>{ const n=p.name.split(" ").pop(); if(n) batters.push(n); });
-    }
+    // No fallback — wrong team's players would get used. Leave arrays empty;
+    // callers fall back to "the bowler" / "[teamName] batter" generics.
     return {bowlers,batters};
   }
 
@@ -1518,6 +1560,20 @@ function renderScorecard(){
   return inn(d.bat1)+inn(d.bat2);
 }
 
+// ── TOAST HELPER ──
+function _showToast(msg,dur=3000){
+  let t=document.getElementById("_jafToast");
+  if(!t){
+    t=document.createElement("div");
+    t.id="_jafToast";
+    t.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none;transition:opacity 0.3s";
+    document.body.appendChild(t);
+  }
+  t.textContent=msg; t.style.opacity="1";
+  clearTimeout(t._hide);
+  t._hide=setTimeout(()=>{t.style.opacity="0";},dur);
+}
+
 // ── COMMENTARY ──
 function startComm(style, btnEl){
   _unlockAudio(); // MUST be sync in click handler — unlocks AudioContext + Web Speech
@@ -1528,7 +1584,12 @@ function startComm(style, btnEl){
   detStyle=style;
   stopDetailPlay();
   const d=matchDetails[detKey];
-  if(!d||!d.bbb) return;
+  if(!d||!d.bbb){
+    _showToast("⏳ Commentary loading… please try again in a moment");
+    document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("active"));
+    if(btnEl) btnEl.classList.add("active");
+    return;
+  }
   detPlaying=true; detPlayIdx=0;
   if(btnEl) btnEl.classList.add("loading");
   document.getElementById("ssCommStatus").textContent="▶";
@@ -1591,12 +1652,27 @@ async function advancePlay(){
 
   // Voice: Brad/Fenrir(1) for wickets & sixes, Jake/Puck(0) for fours & milestones
   const voiceIdx=(entry.type==="WICKET"||entry.type==="SIX")?1:(entry.type==="FOUR"||entry.type==="FIFTY"||entry.type==="HUNDRED")?0:idx%2;
+  // Crowd noise intensity
+  const crowdType=(entry.type==="WICKET"||entry.type==="SIX")?"big":(entry.type==="FOUR"||entry.type==="FIFTY"||entry.type==="HUNDRED")?"medium":"ambient";
 
   if(entry._syn){
-    // Synthetic ball (dot/single/two) — no voice, advance quickly
-    // Show the ball text briefly on screen, then move on
+    // Synthetic ball — speak the ball description via TTS (Camb AI→Gemini), with crowd ambience
+    const synCk=detKey+":syn:"+idx;
+    document.getElementById("ssCommStatus").textContent="⏳";
+    if(!_ttsCache[synCk]){
+      try{
+        _ttsCache[synCk]=await _fetchTTS(entry.text,voiceIdx);
+      }catch(e){
+        // TTS failed — just pause briefly and move on
+        _playCrowdNoise("ambient");
+        await new Promise(r=>{detTimer=setTimeout(r,900);});
+        if(detPlaying&&detPlayIdx===idx){detPlayIdx++;advancePlay();}
+        return;
+      }
+    }
     document.getElementById("ssCommStatus").textContent="▶";
-    await new Promise(r=>{detTimer=setTimeout(r,700);});
+    _playCrowdNoise("ambient");
+    if(detPlaying&&detPlayIdx===idx) await _playAudio(_ttsCache[synCk]);
   } else {
     // Key moment — Camb AI (Brad/Jake) primary, Gemini (Fenrir/Puck) backup
     const ck=_kwCacheKey(entry)||detKey+":"+detStyle+":adv:"+idx;
@@ -1610,6 +1686,7 @@ async function advancePlay(){
       }catch(e){
         // TTS completely failed — skip this entry after brief pause
         if(jEl) jEl.textContent="🎙️ "+jText;
+        _playCrowdNoise(crowdType);
         await new Promise(r=>{detTimer=setTimeout(r,2000);});
         if(detPlaying&&detPlayIdx===idx){detPlayIdx++;advancePlay();}
         return;
@@ -1618,6 +1695,8 @@ async function advancePlay(){
     document.getElementById("ssCommStatus").textContent="▶";
     const activeBtn=document.querySelector(".ss-style-btn.active");
     if(activeBtn) activeBtn.classList.remove("loading");
+    // Play crowd noise just before the commentary audio for key moments
+    _playCrowdNoise(crowdType);
     if(detPlaying&&detPlayIdx===idx) await _playAudio(_ttsCache[ck]);
   }
 
@@ -1723,6 +1802,8 @@ async function _pollLiveCommentary(){
           _liveState.entryCount++;
           // Camb AI primary → Gemini backup. Device voices NEVER used.
           const ck="live:"+ev.type+":"+runs+":"+wkts;
+          const liveCrowd=(ev.type==="WICKET"||ev.type==="SIX")?"big":(ev.type==="FOUR")?"medium":"ambient";
+          _playCrowdNoise(liveCrowd);
           _fetchTTS(cText,vi).then(u=>{_ttsCache[ck]=u; _playAudio(u);}).catch(()=>{});
         }
       }
