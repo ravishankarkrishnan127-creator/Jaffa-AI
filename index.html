@@ -159,6 +159,9 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
 .bbb-item{padding:12px 16px;border-bottom:1px solid #0d0d1c;transition:background .25s,border-left .25s}
 .bbb-item.playing{background:#0d1829;border-left:3px solid #e65100}
 .bbb-item.done{opacity:.45}
+.bbb-item.bbb-syn{padding:6px 16px;opacity:.7}
+.bbb-item.bbb-syn .bbb-text{font-size:12px;color:#555}
+.bbb-item.bbb-syn .bbb-score{font-size:10px;color:#333}
 .bbb-meta{display:flex;align-items:center;gap:8px;margin-bottom:5px}
 .bbb-over{font-size:10px;color:#444;font-weight:700;min-width:28px}
 .bbb-badge{font-size:10px;font-weight:800;padding:2px 9px;border-radius:10px;letter-spacing:.3px}
@@ -308,8 +311,8 @@ const matchData = {
     {
       label:"IPL 2026 · 6th Match", badge:"upcoming",
       team1:{flag:"🟠",name:"SRH",score:"",wkts:"",overs:""},
-      team2:{flag:"🩷",name:"RR",score:"",wkts:"",overs:""},
-      status:"🕖 3 Apr · 7:30 PM IST · Sunrisers Hyderabad vs Rajasthan Royals",
+      team2:{flag:"💜",name:"KKR",score:"",wkts:"",overs:""},
+      status:"🕖 3 Apr · 7:30 PM IST · Sunrisers Hyderabad vs Kolkata Knight Riders",
       extra:"📍 Rajiv Gandhi International Stadium, Hyderabad",
       result:"", listen:false
     }
@@ -1034,55 +1037,149 @@ const matchDetails = {
   }
 };
 
-// ── CAMB AI TTS ENGINE ──
+// ── TTS ENGINE ──
+// Primary: Google AI Studio (Gemini TTS) — Puck & Fenrir voices, ~2-3s latency
+// Backup:  Camb AI — Brad & Jake voices, ~50s latency
+// Instant: Web Speech API — zero latency, plays immediately always
+
+// ── GOOGLE AI STUDIO (GEMINI TTS) — add your AI Studio key here ──
+const GEMINI_TTS_KEY=""; // paste your key from aistudio.google.com/apikey
+const GEMINI_TTS_URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
+
+// ── CAMB AI ──
 const CAMB_KEY="cb4dd2e2-d591-47ec-84ab-74461d004cec";
 const CAMB_API="https://client.camb.ai/apis";
-// Hardcoded verified voice IDs
-const JAKE_ID=165325; // Jake (Streamer) – fast, loud, energetic
-const BRAD_ID=147337; // Brad (Commentator) – excited sports announcer
-const _cambVoices=[JAKE_ID,BRAD_ID]; // index 0=Jake, 1=Brad
-const _ttsCache={}; // key → audio URL string
+const JAKE_ID=165325; // Jake (Streamer) – energetic
+const BRAD_ID=147337; // Brad (Commentator) – dramatic
+const _cambVoices=[JAKE_ID,BRAD_ID]; // 0=Jake/Puck, 1=Brad/Fenrir
+
+const _ttsCache={}; // over-key → blob URL
 let _currentAudio=null;
 let _audioCtx=null;
 
-// Unlock audio on first user gesture — must be called synchronously inside a click handler
 function _unlockAudio(){
-  if(!_audioCtx){
-    try{ _audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
-  }
+  if(!_audioCtx){try{_audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
   if(_audioCtx&&_audioCtx.state==="suspended") _audioCtx.resume();
-  // Play a silent buffer to warm up audio pipeline
   if(_audioCtx){
     const buf=_audioCtx.createBuffer(1,1,22050);
     const src=_audioCtx.createBufferSource();
-    src.buffer=buf; src.connect(_audioCtx.destination); src.start(0);
+    src.buffer=buf;src.connect(_audioCtx.destination);src.start(0);
   }
+  // Also prime Web Speech voice list
+  try{if(window.speechSynthesis&&!speechSynthesis.getVoices().length) speechSynthesis.getVoices();}catch(e){}
 }
 
-async function _fetchTTS(text,voiceIdx){
+// ── INSTANT: Web Speech API (zero latency) ──
+function _speakNow(text,type){
+  try{
+    if(!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text);
+    u.rate=(type==="WICKET"||type==="SIX")?1.25:1.1;
+    u.pitch=(type==="WICKET"||type==="SIX")?1.3:1.05;
+    u.volume=1.0;
+    const voices=speechSynthesis.getVoices();
+    const pick=voices.find(v=>/en/i.test(v.lang)&&/(google|daniel|alex|rishi|moira|samantha)/i.test(v.name))
+              ||voices.find(v=>/en.*in/i.test(v.lang))||voices.find(v=>/en/i.test(v.lang));
+    if(pick) u.voice=pick;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+// Async version — resolves when speech ends (for sequential playback)
+function _speakNowAsync(text,type){
+  return new Promise(resolve=>{
+    try{
+      if(!window.speechSynthesis){resolve();return;}
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(text);
+      u.rate=(type==="WICKET"||type==="SIX")?1.22:(type==="NORMAL"||type==="DOT"||type==="SINGLE")?1.15:1.1;
+      u.pitch=(type==="WICKET"||type==="SIX")?1.3:(type==="FOUR"||type==="FIFTY"||type==="HUNDRED")?1.1:1.05;
+      u.volume=1.0;
+      const voices=speechSynthesis.getVoices();
+      const pick=voices.find(v=>/en/i.test(v.lang)&&/(google|daniel|alex|rishi|moira|samantha)/i.test(v.name))
+                ||voices.find(v=>/en.*in/i.test(v.lang))||voices.find(v=>/en/i.test(v.lang));
+      if(pick) u.voice=pick;
+      const tOut=setTimeout(resolve,Math.max(3500,text.length*65));
+      u.onend=()=>{clearTimeout(tOut);resolve();};
+      u.onerror=()=>{clearTimeout(tOut);resolve();};
+      speechSynthesis.speak(u);
+    }catch(e){resolve();}
+  });
+}
+
+// ── GEMINI TTS (Puck=energetic, Fenrir=deep/dramatic) ──
+async function _fetchGeminiTTS(text,voiceIdx){
+  if(!GEMINI_TTS_KEY) throw new Error("No Gemini key");
+  const voiceName=voiceIdx===1?"Fenrir":"Puck";
+  const resp=await fetch(GEMINI_TTS_URL+"?key="+GEMINI_TTS_KEY,{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      contents:[{parts:[{text}]}],
+      generationConfig:{responseModalities:["AUDIO"],
+        speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName}}}}
+    })
+  });
+  if(!resp.ok) throw new Error("Gemini "+resp.status);
+  const j=await resp.json();
+  const part=j.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+  if(!part?.data) throw new Error("No audio in Gemini response");
+  const bin=atob(part.data);
+  const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  // If raw PCM (L16), wrap in WAV header
+  const mime=part.mimeType||"audio/wav";
+  let blob;
+  if(mime.includes("L16")||mime.includes("pcm")){
+    const sr=parseInt((mime.match(/rate=(\d+)/)||[])[1]||24000);
+    blob=_pcmToWav(arr,sr);
+  } else {
+    blob=new Blob([arr],{type:mime});
+  }
+  return URL.createObjectURL(blob);
+}
+
+function _pcmToWav(pcm,sr=24000){
+  const n=pcm.length, buf=new ArrayBuffer(44+n), v=new DataView(buf);
+  const ws=(s,o)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  ws("RIFF",0);v.setUint32(4,36+n,true);ws("WAVE",8);ws("fmt ",12);
+  v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);
+  v.setUint16(34,16,true);ws("data",36);v.setUint32(40,n,true);
+  new Uint8Array(buf).set(pcm,44);
+  return new Blob([buf],{type:"audio/wav"});
+}
+
+// ── CAMB AI TTS (Brad/Jake, ~50s) ──
+async function _fetchCambTTS(text,voiceIdx){
   const voiceId=_cambVoices[voiceIdx%_cambVoices.length];
-  // Step 1: submit
   const r1=await fetch(CAMB_API+"/tts",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":CAMB_KEY},
+    method:"POST",headers:{"Content-Type":"application/json","x-api-key":CAMB_KEY},
     body:JSON.stringify({text,voice_id:voiceId,language:1,gender:1,age:30})
   });
-  if(!r1.ok) throw new Error("CAMB TTS submit "+r1.status);
+  if(!r1.ok) throw new Error("CAMB submit "+r1.status);
   const {task_id}=await r1.json();
-  // Step 2: poll until SUCCESS
   let run_id=null;
   for(let i=0;i<30;i++){
     await new Promise(res=>setTimeout(res,2000));
     const r2=await fetch(CAMB_API+"/tts/"+task_id,{headers:{"x-api-key":CAMB_KEY}});
     const s=await r2.json();
     if(s.status==="SUCCESS"){run_id=s.run_id;break;}
-    if(s.status==="FAILED") throw new Error("CAMB TTS failed");
+    if(s.status==="FAILED") throw new Error("CAMB failed");
   }
-  if(!run_id) throw new Error("CAMB TTS timeout");
-  // Step 3: get audio URL
+  if(!run_id) throw new Error("CAMB timeout");
   const r3=await fetch(CAMB_API+"/tts-result/"+run_id+"?output_type=file_url",{headers:{"x-api-key":CAMB_KEY}});
   const res=await r3.json();
   return res.output_url||res.url||res;
+}
+
+// ── UNIFIED TTS: try Gemini → Camb AI ──
+async function _fetchTTS(text,voiceIdx){
+  if(GEMINI_TTS_KEY){
+    try{ return await _fetchGeminiTTS(text,voiceIdx); }
+    catch(e){ console.warn("Gemini TTS failed:",e.message); }
+  }
+  return await _fetchCambTTS(text,voiceIdx);
 }
 
 async function _playAudio(url){
@@ -1262,22 +1359,92 @@ function _restoreChatHistory(){
 }
 
 let _bbbImportantOnly=false;
+let _activeBBBList=null; // the current playing list (key moments or all balls)
 const _BBB_IMPORTANT=new Set(["WICKET","SIX","FOUR","FIFTY","HUNDRED"]);
+
+// ── SEEDED RNG for deterministic synthetic ball generation ──
+function _seed(str){let h=5381;for(let i=0;i<str.length;i++)h=((h<<5)+h+str.charCodeAt(i))&0xffffffff;return Math.abs(h);}
+function _rnd(arr,s){return arr[s%arr.length];}
+
+// ── EXPAND BBB: generate every-ball commentary from sparse key moments + scorecard ──
+function _expandBBB(dk){
+  const d=matchDetails[dk];
+  if(!d||!d.bbb) return [];
+  const t1=d.bat1?.team||"", t2=d.bat2?.team||"";
+  // Separate key moments by innings via score field prefix
+  const km1={},km2={};
+  (d.bbb||[]).forEach(b=>{
+    const sc=b.score||"";
+    if(sc.startsWith(t1)) km1[b.over]=b;
+    else km2[b.over]=b;
+  });
+  const result=[];
+  const DOT_T=["Dot ball — well bowled.","Defended firmly, no run.","Back to the bowler. Dot.","Pushed to mid-on, no run.","Tight line — dot ball.","Good line and length, blocked."];
+  const ONE_T=["Pushed to cover for one.","Nudged to leg — quick single.","Driven to long-on, one run.","Worked to mid-wicket, single.","Tapped down to third man — one.","Clipped to fine leg for one."];
+  const TWO_T=["Driven wide of mid-on — two.","Good running, two more.","Placed into the gap — two runs.","Hit to long-off, they run two."];
+  const THREE_T=["Three runs! Well placed into the gap.","Played to the boundary rider, three."];
+  const WIDE_T=["Wide ball signalled.","Slides down leg — Wide.","Too full and wide — wide called."];
+  const NB_T=["No ball — overstepped.","No ball! Free hit coming up."];
+
+  function fillInnings(keyMap,teamName,overs){
+    const fullOv=Math.floor(overs), partBalls=Math.round((overs-fullOv)*10);
+    let cum=0,cumW=0;
+    for(let ov=1;ov<=fullOv+(partBalls>0?1:0);ov++){
+      const balls=(ov===fullOv+1&&partBalls>0)?partBalls:6;
+      for(let b=1;b<=balls;b++){
+        const ob=ov+"."+b;
+        if(keyMap[ob]){
+          result.push(keyMap[ob]);
+          const m=(keyMap[ob].score||"").match(/(\d+)\/(\d+)/);
+          if(m){cum=parseInt(m[1]);cumW=parseInt(m[2]);}
+        } else {
+          const s=_seed(dk+teamName+ov+b);
+          const r=s%100;
+          let runs=0,type="NORMAL",txt;
+          if(r<5){type="WIDE";txt=_rnd(WIDE_T,s);}
+          else if(r<8){type="NORMAL";runs=0;txt=_rnd(NB_T,s);}
+          else if(r<36){runs=0;type="DOT";txt=_rnd(DOT_T,s);}
+          else if(r<56){runs=1;txt=_rnd(ONE_T,s);}
+          else if(r<70){runs=2;txt=_rnd(TWO_T,s);}
+          else if(r<75){runs=3;txt=_rnd(THREE_T,s);}
+          else{runs=1;txt=_rnd(ONE_T,s);}
+          if(type!=="WIDE"&&type!=="NORMAL") type="NORMAL";
+          cum+=runs;
+          const sc=teamName+" "+cum+"/"+cumW+" ("+ob+")";
+          result.push({over:ob,type:"NORMAL",text:txt,dramatic:txt,funny:txt,analytical:txt,score:sc,_syn:true});
+        }
+      }
+    }
+  }
+
+  const ov1=parseFloat((d.bat1?.overs||"20.0").replace(" ov",""))||20;
+  const ov2=parseFloat((d.bat2?.overs||"20.0").replace(" ov",""))||20;
+  fillInnings(km1,t1,ov1);
+  fillInnings(km2,t2,ov2);
+  return result;
+}
 
 function renderBBB(){
   const d=matchDetails[detKey];
   if(!d||!d.bbb)return"<div style='padding:40px;text-align:center;color:#444'>Ball-by-ball coming soon</div>";
   const ab=!_bbbImportantOnly, ib=_bbbImportantOnly;
   const filterBtn="<div style='display:flex;gap:8px;padding:8px 12px 4px;border-bottom:1px solid #1a1a1a'>"+
-    "<button onclick='_bbbImportantOnly=false;renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:"+(ab?"#f59e0b":"#1a1a1a")+";color:"+(ab?"#000":"#888")+"'>All Events</button>"+
-    "<button onclick='_bbbImportantOnly=true;renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:"+(ib?"#f59e0b":"#1a1a1a")+";color:"+(ib?"#000":"#888")+"'>⭐ Key Moments</button></div>";
-  const filtered=_bbbImportantOnly?d.bbb.filter(b=>_BBB_IMPORTANT.has(b.type)):d.bbb;
+    "<button onclick='_bbbImportantOnly=false;stopDetailPlay();renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:"+(ab?"#f59e0b":"#1a1a1a")+";color:"+(ab?"#000":"#888")+"'>All Events</button>"+
+    "<button onclick='_bbbImportantOnly=true;stopDetailPlay();renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:"+(ib?"#f59e0b":"#1a1a1a")+";color:"+(ib?"#000":"#888")+"'>⭐ Key Moments</button></div>";
+  // Build active list based on filter
+  if(_bbbImportantOnly){
+    _activeBBBList=d.bbb.filter(b=>_BBB_IMPORTANT.has(b.type));
+  } else {
+    _activeBBBList=_expandBBB(detKey); // every ball
+  }
   // Descending order — most recent on top
-  const reversed=[...filtered].reverse();
+  const reversed=[..._activeBBBList].reverse();
   const items=reversed.map((b,ri)=>{
-    const i=filtered.length-1-ri; // original index for IDs
-    const jText=b[detStyle]||b.dramatic||b.jaffa||"";
-    return "<div class='bbb-item' id='bbb"+i+"'><div class=bbb-meta><span class=bbb-over>"+b.over+"</span><span class='bbb-badge "+b.type+"'>"+b.type+"</span></div><div class=bbb-text>"+b.text+"</div><div class=bbb-jaffa id='bbbj"+i+"'>🎙️ "+jText+"</div><div class=bbb-score>"+b.score+"</div></div>";
+    const i=_activeBBBList.length-1-ri;
+    const jText=b._syn?"":b[detStyle]||b.dramatic||"";
+    const badgeCls=_BBB_IMPORTANT.has(b.type)?b.type:"NORMAL";
+    const typeLabel=_BBB_IMPORTANT.has(b.type)?b.type:"•";
+    return "<div class='bbb-item"+(b._syn?" bbb-syn":"")+"' id='bbb"+i+"'><div class=bbb-meta><span class=bbb-over>"+b.over+"</span><span class='bbb-badge "+badgeCls+"'>"+typeLabel+"</span></div><div class=bbb-text>"+b.text+"</div>"+(jText?"<div class=bbb-jaffa id='bbbj"+i+"'>🎙️ "+jText+"</div>":"")+"<div class=bbb-score>"+b.score+"</div></div>";
   }).join("");
   return filterBtn+items;
 }
@@ -1295,58 +1462,40 @@ function renderScorecard(){
 
 // ── COMMENTARY ──
 function startComm(style, btnEl){
-  _unlockAudio(); // Must be synchronous inside click handler to satisfy browser autoplay policy
-  // Switch style buttons
+  _unlockAudio(); // MUST be sync in click handler — unlocks AudioContext + Web Speech
   document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("active"));
   if(btnEl) btnEl.classList.add("active");
-  // If live commentary is active, just change the style — don't restart the polling loop
-  if(_liveState.active){
-    _liveState.style=style;
-    document.getElementById("ssCommStatus").textContent="🔴";
-    if(btnEl) btnEl.classList.add("loading");
-    return;
-  }
-  // If same style and already playing, treat as pause/stop
-  if(detPlaying && style===detStyle){stopDetailPlay();return;}
-  // Switch style and restart
+  if(_liveState.active){_liveState.style=style;document.getElementById("ssCommStatus").textContent="🔴";return;}
+  if(detPlaying&&style===detStyle){stopDetailPlay();return;}
   detStyle=style;
   stopDetailPlay();
   const d=matchDetails[detKey];
   if(!d||!d.bbb) return;
   detPlaying=true; detPlayIdx=0;
   if(btnEl) btnEl.classList.add("loading");
-  document.getElementById("ssCommStatus").textContent="⏳";
-  // Switch to BBB tab
+  document.getElementById("ssCommStatus").textContent="▶";
   if(detTab!=="bbb"){
     detTab="bbb";
     document.querySelectorAll(".det-tab").forEach((t,i)=>t.classList.toggle("active",i===0));
     renderDetBody();
   }
-  // Pre-fetch ALL entries in parallel so audio is ready when needed
-  // Camb AI takes ~10-50s per clip — firing all at once means they're all ready after one wait
-  function _voiceForType(type,i){ return (type==="WICKET"||type==="SIX")?1:(type==="FOUR"||type==="FIFTY"||type==="HUNDRED")?0:i%2; }
-  const d2=matchDetails[detKey];
-  if(d2&&d2.bbb){
-    d2.bbb.forEach((entry,i)=>{
-      const ck=detKey+":"+style+":"+i;
-      if(!_ttsCache[ck]){
-        const txt=entry[style]||entry.dramatic||"";
-        _fetchTTS(txt,_voiceForType(entry.type,i)).then(u=>{_ttsCache[ck]=u;}).catch(()=>{});
-      }
-    });
-    // Also pre-fetch Hindi intro
-    const ick="_hindi_intro_"+detKey;
-    if(!_ttsCache[ick]){
-      _fetchTTS("यार, मैच तो खत्म हो गया... लेकिन रुको! अब सुनो इस मैच के best highlights!",0)
-        .then(u=>{_ttsCache[ick]=u;}).catch(()=>{});
+  // Pre-fetch ONLY key moments via Gemini/Camb AI in background (synthetic balls use Web Speech only)
+  function _vtForType(type,i){return(type==="WICKET"||type==="SIX")?1:(type==="FOUR"||type==="FIFTY"||type==="HUNDRED")?0:i%2;}
+  d.bbb.forEach((entry,i)=>{
+    const ck=detKey+":"+style+":kw:"+i;
+    if(!_ttsCache[ck]){
+      const txt=entry[style]||entry.dramatic||"";
+      _fetchTTS(txt,_vtForType(entry.type,i)).then(u=>{_ttsCache[ck]=u;}).catch(()=>{});
     }
-  }
+  });
+  // Hindi intro — fire in background, don't wait
+  const ick="_hindi_intro_"+detKey;
+  if(!_ttsCache[ick]) _fetchTTS("यार, मैच तो खत्म हो गया... लेकिन रुको! अब सुनो इस मैच के best highlights!",0).then(u=>{_ttsCache[ick]=u;}).catch(()=>{});
 
-  // For completed matches, Jake introduces highlights in Hindi first
   const allM=[...matchData.live,...matchData.upcoming,...matchData.completed];
   const curM=allM.find(m=>m.label===detKey);
   if(curM&&curM.badge==="completed"){
-    _playHindiIntro().then(()=>{ if(detPlaying) advancePlay(); });
+    _playHindiIntro().then(()=>{if(detPlaying) advancePlay();});
   } else {
     advancePlay();
   }
@@ -1354,59 +1503,55 @@ function startComm(style, btnEl){
 
 async function _playHindiIntro(){
   try{
-    document.getElementById("ssCommStatus").textContent="⏳";
-    const text="यार, मैच तो खत्म हो गया... लेकिन रुको! अब सुनो इस मैच के best highlights!";
+    const text="यार, मैच तो खत्म हो गया... लेकिन रुको! अब सुनो इस मैच ke best highlights!";
     const ck="_hindi_intro_"+detKey;
-    if(!_ttsCache[ck]) _ttsCache[ck]=await _fetchTTS(text,0); // Jake
-    await _playAudio(_ttsCache[ck]);
-  }catch(e){ /* if intro fails, just proceed to highlights */ }
+    if(_ttsCache[ck]){
+      await _playAudio(_ttsCache[ck]); // high-quality cached version
+    } else {
+      await _speakNowAsync(text,"INTRO"); // INSTANT Web Speech — no waiting
+      if(!_ttsCache[ck]) _fetchTTS(text,0).then(u=>{_ttsCache[ck]=u;}).catch(()=>{});
+    }
+  }catch(e){}
 }
 
 async function advancePlay(){
   if(!detPlaying) return;
-  const d=matchDetails[detKey];
-  if(!d||detPlayIdx>=d.bbb.length){stopDetailPlay();return;}
+  const bbbList=_activeBBBList||matchDetails[detKey]?.bbb||[];
+  if(detPlayIdx>=bbbList.length){stopDetailPlay();return;}
   const idx=detPlayIdx;
-  const entry=d.bbb[idx];
-  const jText=entry[detStyle]||entry.dramatic||entry.jaffa||"";
+  const entry=bbbList[idx];
+  const jText=entry._syn?"":entry[detStyle]||entry.dramatic||"";
 
-  // Highlight current entry
-  document.querySelectorAll(".bbb-item").forEach((el,i)=>{
+  // Highlight current item in DOM (note: DOM is reversed so item 0 is at bottom)
+  const allItems=document.querySelectorAll(".bbb-item");
+  const domIdx=allItems.length-1-idx; // reversed display
+  allItems.forEach((el,di)=>{
     el.classList.remove("playing","done");
-    if(i===idx){el.classList.add("playing");el.scrollIntoView({behavior:"smooth",block:"center"});}
-    else if(i<idx) el.classList.add("done");
+    if(di===domIdx){el.classList.add("playing");el.scrollIntoView({behavior:"smooth",block:"center"});}
+    else if(di>domIdx) el.classList.add("done"); // older items (higher original index)
   });
 
-  // Voice rule: Brad(1) for wickets & sixes, Jake(0) for fours & milestones, alternate for others
-  function _voiceFor(type,i){ return (type==="WICKET"||type==="SIX")? 1 : (type==="FOUR"||type==="FIFTY"||type==="HUNDRED")? 0 : i%2; }
-  const voiceIdx=_voiceFor(entry.type,idx);
-
-  // Pre-fetch next in background
-  const nk=detKey+":"+detStyle+":"+(idx+1);
-  if(idx+1<d.bbb.length&&!_ttsCache[nk]){
-    const nEntry=d.bbb[idx+1];
-    const nText=nEntry[detStyle]||nEntry.dramatic||nEntry.jaffa||"";
-    _fetchTTS(nText,_voiceFor(nEntry.type,idx+1)).then(u=>{_ttsCache[nk]=u;}).catch(()=>{});
-  }
-
-  const ck=detKey+":"+detStyle+":"+idx;
-  const jEl=document.getElementById("bbbj"+idx);
   const activeBtn=document.querySelector(".ss-style-btn.active");
+  if(activeBtn) activeBtn.classList.remove("loading");
+  document.getElementById("ssCommStatus").textContent="▶";
 
-  try{
-    if(!_ttsCache[ck]){
-      if(jEl) jEl.textContent="🎙️ Generating…";
-      document.getElementById("ssCommStatus").textContent="⏳";
-      _ttsCache[ck]=await _fetchTTS(jText,voiceIdx);
-      if(jEl) jEl.textContent="🎙️ "+jText;
+  // Voice: Brad/Fenrir(1) for wickets & sixes, Puck/Jake(0) for fours & milestones
+  const voiceIdx=(entry.type==="WICKET"||entry.type==="SIX")?1:(entry.type==="FOUR"||entry.type==="FIFTY"||entry.type==="HUNDRED")?0:idx%2;
+
+  if(entry._syn){
+    // Synthetic ball — Web Speech only (short text, no TTS cache needed)
+    await _speakNowAsync(entry.text,"NORMAL");
+  } else {
+    // Key moment — use cached high-quality TTS if available, else Web Speech instantly
+    const ck=_kwCacheKey(entry);
+    if(ck&&_ttsCache[ck]){
+      await _playAudio(_ttsCache[ck]);
+    } else {
+      // INSTANT: play via Web Speech now, generate high-quality in background
+      await _speakNowAsync(jText||entry.text, entry.type);
+      const ckA=detKey+":"+detStyle+":adv:"+idx;
+      if(!_ttsCache[ckA]) _fetchTTS(jText||entry.text,voiceIdx).then(u=>{_ttsCache[ckA]=u;}).catch(()=>{});
     }
-    document.getElementById("ssCommStatus").textContent="▶";
-    if(activeBtn) activeBtn.classList.remove("loading");
-    if(detPlaying&&detPlayIdx===idx) await _playAudio(_ttsCache[ck]);
-  }catch(e){
-    if(jEl) jEl.textContent="🎙️ "+jText;
-    document.getElementById("ssCommStatus").textContent="";
-    await new Promise(r=>{detTimer=setTimeout(r,3000);});
   }
 
   if(detPlaying&&detPlayIdx===idx){
@@ -1415,12 +1560,22 @@ async function advancePlay(){
   }
 }
 
+// Helper — look up the kw cache for a key-moment entry
+function _kwCacheKey(entry){
+  const d=matchDetails[detKey];
+  if(!d||!d.bbb) return null;
+  const i=d.bbb.findIndex(b=>b.over===entry.over&&b.type===entry.type);
+  return i>=0?detKey+":"+detStyle+":kw:"+i:null;
+}
+
 function stopDetailPlay(){
   detPlaying=false;
-  _stopLiveCommentary(); // also stop live engine if running
+  try{if(window.speechSynthesis) speechSynthesis.cancel();}catch(e){}
+  _stopLiveCommentary();
   if(detTimer){clearTimeout(detTimer);detTimer=null;}
-  if(_currentAudio){try{_currentAudio.pause();}catch(e){}_currentAudio=null;}
-  document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("loading"));
+  if(_currentAudio){try{_currentAudio.stop();}catch(e){try{_currentAudio.pause();}catch(e2){}}_currentAudio=null;}
+  document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("loading","active"));
+  document.querySelector(".ss-style-btn")?.classList.add("active");
   document.getElementById("ssCommStatus").textContent="";
   document.querySelectorAll(".bbb-item").forEach(el=>el.classList.remove("playing","done"));
 }
@@ -1723,25 +1878,40 @@ async function fetchLiveScores(){
       return aw.some(w=>b.toLowerCase().includes(w));
     }
 
+    // GUARDRAIL: validate match name is not blank/garbage
+    const _validMatch=m=>m.teams&&m.teams.length>=2&&m.teams[0]&&m.teams[1];
+
     data.data.forEach(m=>{
-      const t1n=(m.teams&&m.teams[0])||"";
-      const t2n=(m.teams&&m.teams[1])||"";
+      if(!_validMatch(m)) return;
+      const t1n=m.teams[0], t2n=m.teams[1];
       const isLive=m.matchStarted&&!m.matchEnded;
       const isDone=m.matchEnded;
+      const seriesStr=((m.name||"")+" "+(m.series||"")).toLowerCase();
+      const teamsStr=(t1n+" "+t2n).toLowerCase();
+
+      // GUARDRAIL: Quality filter — franchise leagues OR ≥2 major international teams
+      const FRANCHISE_LEAGUES=["ipl","psl","bbl","cpl","sa20","ilt20","mlc","wpl","wipl","t20 blast","the hundred","vitality blast","big bash"];
+      const INTL_TEAMS=["india","pakistan","australia","england","new zealand","south africa","west indies","sri lanka","bangladesh","afghanistan","zimbabwe","ireland","scotland","netherlands","namibia","uae","oman","png","usa","canada","kenya"];
+      const isFranchise=FRANCHISE_LEAGUES.some(l=>seriesStr.includes(l));
+      const intlCount=INTL_TEAMS.filter(t=>teamsStr.includes(t)).length;
+      const isWomens=seriesStr.includes("women")||teamsStr.includes("women")||(m.name||"").includes("-W");
+      // Accept: franchise leagues, international (≥2 national teams), women's cricket
+      if(!isFranchise&&intlCount<2&&!isWomens) return; // reject: domestic/low-quality
 
       // Find existing entry by team name match (preserves label so BBB still works)
       const existing=all.find(e=>_namesMatch(t1n,e.team1.name)&&_namesMatch(t2n,e.team2.name));
 
       if(existing){
-        existing.apiId=m.id; // store API ID for auto-fetch scorecard/BBB
-        // Update score in place — never change the label
+        existing.apiId=m.id;
+        // Only update score if API value looks valid (not 0/0 on a started match)
         const s1=m.score&&m.score.find(s=>s.inning&&_namesMatch(t1n,s.inning));
         const s2=m.score&&m.score.find(s=>s.inning&&_namesMatch(t2n,s.inning));
-        if(s1){existing.team1.score=String(s1.r);existing.team1.wkts=String(s1.w);existing.team1.overs=s1.o+" ov";}
-        if(s2){existing.team2.score=String(s2.r);existing.team2.wkts=String(s2.w);existing.team2.overs=s2.o+" ov";}
+        if(s1&&(s1.r>0||s1.w>0)){existing.team1.score=String(s1.r);existing.team1.wkts=String(s1.w);existing.team1.overs=s1.o+" ov";}
+        if(s2&&(s2.r>0||s2.w>0)){existing.team2.score=String(s2.r);existing.team2.wkts=String(s2.w);existing.team2.overs=s2.o+" ov";}
         if(isDone&&existing.badge!=="completed"){
-          existing.badge="completed";existing.result="✅ "+m.status;
-          // Move from live/upcoming to completed
+          existing.badge="completed";
+          existing.result="✅ "+(m.status||"Match completed");
+          if(!existing.status||!existing.status.includes("hl-g")) existing.status="<span class=hl-g>"+(m.status||"Match completed")+"</span>";
           matchData.live=matchData.live.filter(x=>x!==existing);
           matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
           if(!matchData.completed.includes(existing)) matchData.completed.unshift(existing);
@@ -1751,24 +1921,21 @@ async function fetchLiveScores(){
           matchData.completed=matchData.completed.filter(x=>x!==existing);
           if(!matchData.live.includes(existing)) matchData.live.unshift(existing);
         }
-        existing.status=m.status||existing.status;
+        if(m.status&&isLive) existing.status=m.status; // live status text OK to overwrite
         changed=true;
-      } else if(isLive){
-        // Only add quality matches — franchise leagues or proper international matches
-        const seriesStr=((m.name||"")+" "+(m.series||"")).toLowerCase();
-        const teamsStr=(m.teams||[]).join(" ").toLowerCase();
-        const isFranchise=["ipl","psl","bbl","cpl","sa20","ilt20","mlc","t20 blast","the hundred","vitality blast"].some(l=>seriesStr.includes(l));
-        const intlTeams=["india","pakistan","australia","england","new zealand","south africa","west indies","sri lanka","bangladesh","afghanistan","zimbabwe","ireland","scotland","netherlands","namibia","uae","oman","png","usa","canada","kenya","nepal national","new zealand"];
-        const intlCount=intlTeams.filter(t=>teamsStr.includes(t)).length;
-        if(!isFranchise&&intlCount<2) return; // skip domestic/low-quality matches
+      } else if(isLive||(!existing&&!isDone)){
+        // New match from API — add to appropriate list
         const s1=m.score&&m.score.find(s=>s.inning&&_namesMatch(t1n,s.inning));
         const s2=m.score&&m.score.find(s=>s.inning&&_namesMatch(t2n,s.inning));
-        matchData.live.push({
-          label:m.name||`${t1n} vs ${t2n}`, badge:"live", apiId:m.id,
-          team1:{flag:_teamFlag(t1n),name:t1n,score:s1?String(s1.r):"",wkts:s1?String(s1.w):"",overs:s1?s1.o+" ov":""},
-          team2:{flag:_teamFlag(t2n),name:t2n,score:s2?String(s2.r):"",wkts:s2?String(s2.w):"",overs:s2?s2.o+" ov":""},
-          status:m.status||"🔴 LIVE",extra:m.venue?`📍 ${m.venue}`:"",result:"",listen:false
-        });
+        const newMatch={
+          label:m.name||`${t1n} vs ${t2n}`, badge:isLive?"live":"upcoming", apiId:m.id,
+          team1:{flag:_teamFlag(t1n),name:_norm(t1n)||t1n,score:s1?String(s1.r):"",wkts:s1?String(s1.w):"",overs:s1?s1.o+" ov":""},
+          team2:{flag:_teamFlag(t2n),name:_norm(t2n)||t2n,score:s2?String(s2.r):"",wkts:s2?String(s2.w):"",overs:s2?s2.o+" ov":""},
+          status:m.status||(isLive?"🔴 LIVE":`🕖 ${m.dateTimeGMT||"Upcoming"}`),
+          extra:m.venue?`📍 ${m.venue}`:"",result:"",listen:false
+        };
+        if(isLive) matchData.live.push(newMatch);
+        else matchData.upcoming.push(newMatch);
         changed=true;
       }
     });
