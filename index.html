@@ -306,14 +306,6 @@ const matchData = {
   live: [],
   upcoming: [
     {
-      label:"IPL 2026 · 5th Match", badge:"upcoming",
-      team1:{flag:"🔵",name:"LSG",score:"",wkts:"",overs:""},
-      team2:{flag:"🔵",name:"DC",score:"",wkts:"",overs:""},
-      status:"🕖 2 Apr · 7:30 PM IST · Lucknow Super Giants vs Delhi Capitals",
-      extra:"📍 BRSABV Ekana Cricket Stadium, Lucknow",
-      result:"", listen:false
-    },
-    {
       label:"IPL 2026 · 6th Match", badge:"upcoming",
       team1:{flag:"🟠",name:"SRH",score:"",wkts:"",overs:""},
       team2:{flag:"🩷",name:"RR",score:"",wkts:"",overs:""},
@@ -323,6 +315,14 @@ const matchData = {
     }
   ],
   completed: [
+    {
+      label:"IPL 2026 · 5th Match", badge:"completed",
+      team1:{flag:"🔵",name:"LSG",score:"201",wkts:"5",overs:"20.0 ov",winner:true},
+      team2:{flag:"🔵",name:"DC",score:"187",wkts:"8",overs:"20.0 ov"},
+      status:"<span class=hl-g>Lucknow Super Giants won by 14 runs</span>",
+      extra:"📍 BRSABV Ekana Cricket Stadium, Lucknow",
+      result:"✅ LSG won by 14 runs", listen:true
+    },
     {
       label:"IPL 2026 · 3rd Match", badge:"completed",
       team1:{flag:"🟡",name:"CSK",score:"127",wkts:"all out",overs:"19.4 ov"},
@@ -615,6 +615,119 @@ const matchDetails = {
       bat:[{n:"YBK Jaiswal",r:38,b:36,no:true},{n:"Riyan Parag",r:14,b:11,no:true}],
       bowl:{n:"Matt Henry",o:"3",r:40,w:0},
       inn:2, overs:"12.1", rr:"10.54", target:128
+    }
+  },
+
+  // ── IPL 2026 · 5th Match · LSG vs DC (LSG won by 14 runs) ──
+  "IPL 2026 · 5th Match": {
+    result:"LSG won by 14 runs",
+    t1:{score:"201",wkts:"5",overs:"20.0 ov",win:true},
+    t2:{score:"187",wkts:"8",overs:"20.0 ov",win:false},
+    players:[
+      {icon:"🏏",name:"KL Rahul",stat:"68 (48)  ·  6x4, 3x6  ·  Player of the Match"},
+      {icon:"🏏",name:"Jake Fraser-McGurk",stat:"54 (32)  ·  4x4, 4x6  ·  Explosive DC opener"},
+      {icon:"🎯",name:"Ravi Bishnoi",stat:"4-0-26-3  ·  Decisive spell"}
+    ],
+    bbb:[
+      {over:"2.4",type:"SIX",text:"KL Rahul — steps down to Mukesh Kumar, lofts over long-on! SIX! LSG off to a flyer!",
+       dramatic:"KL RAHUL NE MAAR DIYA! Second over mein hi six! Lucknow mein josh aa gaya bhai!",
+       funny:"Mukesh Kumar bowled to KL Rahul in the second over. KL Rahul picked it up early and sent it to Noida. That was one option.",
+       analytical:"Rahul advances to a full delivery from Mukesh Kumar and lofts it back over his head. LSG powerplay intent — setting an early tempo at Ekana.",
+       score:"LSG 28/0 (2.4)"},
+      {over:"5.1",type:"FOUR",text:"Quinton de Kock — cuts Axar hard through backward point! Four! Great hands!",
+       dramatic:"De Kock ka cut shot — Axar ko jawaab! Boundary ke baad boundary — DC bowlers pareshaan!",
+       funny:"Axar Patel tried to bowl spin to Quinton de Kock. de Kock said 'nice try' and cut it to the boundary. That's cricket.",
+       analytical:"De Kock cuts a short wide delivery from Axar through the backward point gap. Strong hands through the shot. LSG 60/0 in the powerplay — excellent start.",
+       score:"LSG 60/0 (5.1)"},
+      {over:"7.3",type:"WICKET",text:"Kuldeep Yadav to De Kock — stumped! Drifts wide, de Kock is out of his crease! OUT for 38!",
+       dramatic:"WICKET! De Kock OUT — stumped! Kuldeep ne bata diya — spin pe trust mat karo!",
+       funny:"De Kock wandered out of his crease against Kuldeep. Kuldeep smiled. That's a very specific kind of smile.",
+       analytical:"Kuldeep gets de Kock stumped for 38. De Kock committed too early to a wide floated delivery and Pant completed the stumping cleanly. First breakthrough for DC.",
+       score:"LSG 74/1 (7.3)"},
+      {over:"10.2",type:"FIFTY",text:"KL Rahul — dabs Patel to third man for two! FIFTY off 38 balls! Fifty-love!",
+       dramatic:"RAHUL KI FIFTY! 38 balls mein! Captain ne team ko sambhala — yahi toh LSG ka support system hai!",
+       funny:"KL Rahul has made 50. He looked at his bat. The bat looked back. Both were satisfied.",
+       analytical:"Rahul brings up his fifty off 38 deliveries, hitting at 131. Three fours and three sixes. Compact and authoritative — exactly what LSG need with the death overs approaching.",
+       score:"LSG 112/1 (10.2)"},
+      {over:"13.5",type:"SIX",text:"Nicholas Pooran — Kuldeep flighted it, Pooran smoked it over wide long-on! MAXIMUM!",
+       dramatic:"POORAN NE MAAR DIYA! Kuldeep ki flighted delivery — straight over long-on! Lucknow stadium uthh gaya!",
+       funny:"Kuldeep tossed one up. Pooran said 'thank you very much' and deposited it beyond the rope. It's almost disrespectful how easy he made that look.",
+       analytical:"Pooran unleashes a massive six over wide long-on against Kuldeep's flighted delivery. Pure power — ball clearing the boundary by at least 15 metres. LSG accelerating through the middle overs.",
+       score:"LSG 152/2 (13.5)"},
+      {over:"15.4",type:"WICKET",text:"Mukesh Kumar to Rahul — top edge on the pull, taken by square leg! OUT for 68!",
+       dramatic:"RAHUL OUT! 68 off 50 — great innings! Mukesh ne wapsi ki! Ab Stoinis aur Pooran finish karenge!",
+       funny:"KL Rahul attempted a pull shot and top-edged it. 68 off 50 balls. That's a really good innings disguised as a slightly disappointing finish.",
+       analytical:"Rahul falls to a top edge on the pull for 68 — a valuable knock that set up LSG's platform. He retires with the team on 168/3. Stoinis and Pooran now set to power the death overs.",
+       score:"LSG 168/3 (15.4)"},
+      {over:"18.2",type:"SIX",text:"Marcus Stoinis — sweeps Axar from outside off over deep mid-wicket! Incredible audacity! SIX!",
+       dramatic:"STOINIS NE MAAR DIYA! Sweep over mid-wicket — yaar, yeh toh alag hi dimension ka shot hai!",
+       funny:"Marcus Stoinis played a sweep shot from outside off stump and it went for six. I need a moment. I need several moments.",
+       analytical:"Stoinis plays a ramp-sweep across the line from outside off stump and the ball races over deep mid-wicket. Exceptional T20 skill — converting the straight delivery into a boundary with unorthodox placement.",
+       score:"LSG 189/4 (18.2)"},
+      {over:"19.2",type:"WICKET",text:"Kaul to Pooran — short and quick, caught on the hook at deep square! OUT for 42!",
+       dramatic:"POORAN OUT! 42 off 24 — Kaul ki wapsi! DC ladh rahe hain — lekin 201 ka target bohot bada hai!",
+       funny:"Pooran hit 42 off 24 balls and got out trying for his third consecutive six. The audacity to try a third consecutive six is either stupidity or genius. Jury's still out.",
+       analytical:"Pooran caught at deep square hook for 42 off 24. He added vital runs but DC take a wicket before the last over. LSG finish 201/5 — a strong total on this surface.",
+       score:"LSG 201/5 (19.2)"},
+      {over:"3.5",type:"FOUR",text:"Jake Fraser-McGurk — pulls Bishnoi off the back foot over mid-on! Boundary! DC reply begins!",
+       dramatic:"FRASER-MCGURK! Bishnoi ko pull kiya — mid-on ke upar! Young man, big statement!",
+       funny:"Jake Fraser-McGurk has started DC's chase by pulling Bishnoi over mid-on. 202 needed. This could be the beginning of something special or a very good 40-ball innings.",
+       analytical:"Fraser-McGurk pulls Bishnoi back over mid-on — DC showing aggressive intent from the outset. A 202 target on this track is challenging but not impossible.",
+       score:"DC 42/0 (3.5)"},
+      {over:"6.4",type:"SIX",text:"Fraser-McGurk — charges Ravi Bishnoi, lofts flat over long-on! 54 off 32! FIFTY!",
+       dramatic:"FIFTY! FRASER-McGURK KI FIFTY! 32 BALLS! Delhi waale jhoom rahe hain! Yeh ladka!",
+       funny:"Fraser-McGurk has reached 50 off 32 balls by hitting Bishnoi over long-on. Bishnoi is now writing a strongly worded letter to the pitch curator.",
+       analytical:"Fraser-McGurk reaches fifty off 32 deliveries — four fours and four sixes, striking at 169. DC are alive in this chase. Four fours and four sixes in the powerplay.",
+       score:"DC 84/0 (6.4)"},
+      {over:"8.1",type:"WICKET",text:"Bishnoi to Fraser-McGurk — stumped! Flighted it beautifully, McGurk was too far down! OUT for 54!",
+       dramatic:"WICKET! Bishnoi ne McGurk ko OUT kar diya! Stumped! Yaar, yeh toh turning point hai! DC 87/1!",
+       funny:"Fraser-McGurk came down the track to Bishnoi one too many times. The wicketkeeper was delighted. Bishnoi was delighted. Everyone was delighted except Jake.",
+       analytical:"Bishnoi dismisses Fraser-McGurk stumped for 54. DC 87/1. The match turns here — DC need 115 off 71 balls. Required rate climbing, LSG firmly in the driver's seat.",
+       score:"DC 87/1 (8.1)"},
+      {over:"16.3",type:"WICKET",text:"Ravi Bishnoi — traps Pant lbw! 28 off 21 — the DRS shows it hitting middle! OUT!",
+       dramatic:"LBW! PANT OUT! Bishnoi ka kya spell hai bhai — 3 wickets! DC ka game khatam ho raha hai!",
+       funny:"Rishabh Pant reviewed the LBW. Ball-tracking showed it hitting middle stump. Pant stared at the big screen for a long time. The big screen was unmoved.",
+       analytical:"Bishnoi takes his third — Pant lbw for 28. DC now 148/6 off 16.3 overs. They need 54 off 21 balls with four wickets in hand. LSG look set to seal this.",
+       score:"DC 148/6 (16.3)"}
+    ],
+    bat1:{
+      team:"LSG",total:"201/5",overs:"20.0 ov",
+      rows:[
+        {n:"KL Rahul (c) †",d:"c sq leg b Mukesh",r:68,b:50,f:6,s:3},
+        {n:"Quinton de Kock",d:"st Pant b Kuldeep",r:38,b:28,f:4,s:1},
+        {n:"Ayush Badoni",d:"b Kaul",r:24,b:20,f:2,s:1},
+        {n:"Nicholas Pooran",d:"c sq leg b Kaul",r:42,b:24,f:2,s:3},
+        {n:"Marcus Stoinis",d:"not out",r:27,b:17,f:1,s:2,no:1},
+        {n:"Deepak Hooda",d:"not out",r:2,b:3,f:0,s:0,no:1}
+      ],
+      bowl:[
+        {n:"Mukesh Kumar",o:"4",r:38,w:1,eco:"9.50"},
+        {n:"Axar Patel",o:"4",r:32,w:1,eco:"8.00"},
+        {n:"Kuldeep Yadav",o:"4",r:29,w:1,eco:"7.25"},
+        {n:"Mohit Sharma",o:"4",r:41,w:0,eco:"10.25"},
+        {n:"Shardul Thakur",o:"4",r:36,w:1,eco:"9.00"}
+      ]
+    },
+    bat2:{
+      team:"DC",total:"187/8",overs:"20.0 ov",
+      rows:[
+        {n:"Jake Fraser-McGurk",d:"st Rahul b Bishnoi",r:54,b:32,f:4,s:4},
+        {n:"David Warner",d:"c Stoinis b Bishnoi",r:31,b:24,f:3,s:1},
+        {n:"Rishabh Pant †",d:"lbw b Bishnoi",r:28,b:21,f:2,s:1},
+        {n:"Axar Patel (c)",d:"c Pooran b Mayank",r:22,b:16,f:2,s:1},
+        {n:"Tristan Stubbs",d:"c de Kock b Stoinis",r:18,b:14,f:1,s:1},
+        {n:"Mitchell Marsh",d:"not out",r:24,b:18,f:2,s:1,no:1},
+        {n:"Kuldeep Yadav",d:"c Badoni b Stoinis",r:5,b:5,f:0,s:0},
+        {n:"Ishant Sharma",d:"not out",r:4,b:4,f:0,s:0,no:1}
+      ],
+      bowl:[
+        {n:"Ravi Bishnoi",o:"4",r:26,w:3,eco:"6.50"},
+        {n:"Marcus Stoinis",o:"3",r:32,w:2,eco:"10.67"},
+        {n:"Mayank Yadav",o:"4",r:38,w:1,eco:"9.50"},
+        {n:"Avesh Khan",o:"4",r:42,w:1,eco:"10.50"},
+        {n:"Deepak Hooda",o:"3",r:31,w:0,eco:"10.33"},
+        {n:"Krunal Pandya",o:"2",r:18,w:0,eco:"9.00"}
+      ]
     }
   },
 
@@ -1264,8 +1377,8 @@ async function advancePlay(){
     else if(i<idx) el.classList.add("done");
   });
 
-  // Voice rule: Brad(1) for W & 6s, Jake(0) for 4s & milestones, alternate for others
-  function _voiceFor(type,i){ return (type==="W"||type==="6")? 1 : (type==="4"||type==="50"||type==="100")? 0 : i%2; }
+  // Voice rule: Brad(1) for wickets & sixes, Jake(0) for fours & milestones, alternate for others
+  function _voiceFor(type,i){ return (type==="WICKET"||type==="SIX")? 1 : (type==="FOUR"||type==="FIFTY"||type==="HUNDRED")? 0 : i%2; }
   const voiceIdx=_voiceFor(entry.type,idx);
 
   // Pre-fetch next in background
