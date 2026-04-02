@@ -1042,8 +1042,8 @@ const matchDetails = {
 // Backup:  Camb AI — Brad & Jake voices, ~50s latency
 // Instant: Web Speech API — zero latency, plays immediately always
 
-// ── GOOGLE AI STUDIO (GEMINI TTS) — add your AI Studio key here ──
-const GEMINI_TTS_KEY=""; // paste your key from aistudio.google.com/apikey
+// ── GOOGLE AI STUDIO (GEMINI TTS) — backup when Camb AI is unavailable ──
+const GEMINI_TTS_KEY="AIzaSyBBdtBEu8vz6F3-OIGsD0kh_kqVmBZNbrs";
 const GEMINI_TTS_URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
 
 // ── CAMB AI ──
@@ -1173,13 +1173,18 @@ async function _fetchCambTTS(text,voiceIdx){
   return res.output_url||res.url||res;
 }
 
-// ── UNIFIED TTS: try Gemini → Camb AI ──
+// ── UNIFIED TTS: Camb AI primary → Gemini AI Studio backup ──
+// Device/browser voices are NEVER used.
 async function _fetchTTS(text,voiceIdx){
+  // PRIMARY: Camb AI (Brad=1 / Jake=0)
+  try{ return await _fetchCambTTS(text,voiceIdx); }
+  catch(e){ console.warn("Camb AI TTS failed, trying Gemini:",e.message); }
+  // BACKUP: Google AI Studio (Fenrir=1 / Puck=0)
   if(GEMINI_TTS_KEY){
     try{ return await _fetchGeminiTTS(text,voiceIdx); }
-    catch(e){ console.warn("Gemini TTS failed:",e.message); }
+    catch(e2){ console.warn("Gemini TTS also failed:",e2.message); }
   }
-  return await _fetchCambTTS(text,voiceIdx);
+  throw new Error("All TTS providers failed");
 }
 
 async function _playAudio(url){
@@ -1503,15 +1508,15 @@ function startComm(style, btnEl){
 
 async function _playHindiIntro(){
   try{
-    const text="यार, मैच तो खत्म हो गया... लेकिन रुको! अब सुनो इस मैच ke best highlights!";
+    const text="यार, मैच तो खत्म हो गया... लेकिन रुको! अब suno is match ke best highlights!";
     const ck="_hindi_intro_"+detKey;
-    if(_ttsCache[ck]){
-      await _playAudio(_ttsCache[ck]); // high-quality cached version
-    } else {
-      await _speakNowAsync(text,"INTRO"); // INSTANT Web Speech — no waiting
-      if(!_ttsCache[ck]) _fetchTTS(text,0).then(u=>{_ttsCache[ck]=u;}).catch(()=>{});
+    if(!_ttsCache[ck]){
+      document.getElementById("ssCommStatus").textContent="⏳";
+      _ttsCache[ck]=await _fetchTTS(text,0); // Jake (Camb) / Puck (Gemini)
     }
-  }catch(e){}
+    document.getElementById("ssCommStatus").textContent="▶";
+    await _playAudio(_ttsCache[ck]);
+  }catch(e){ /* intro failed — skip straight to highlights */ }
 }
 
 async function advancePlay(){
@@ -1522,36 +1527,45 @@ async function advancePlay(){
   const entry=bbbList[idx];
   const jText=entry._syn?"":entry[detStyle]||entry.dramatic||"";
 
-  // Highlight current item in DOM (note: DOM is reversed so item 0 is at bottom)
+  // Highlight current item (DOM is reversed — item 0 at bottom)
   const allItems=document.querySelectorAll(".bbb-item");
-  const domIdx=allItems.length-1-idx; // reversed display
+  const domIdx=allItems.length-1-idx;
   allItems.forEach((el,di)=>{
     el.classList.remove("playing","done");
     if(di===domIdx){el.classList.add("playing");el.scrollIntoView({behavior:"smooth",block:"center"});}
-    else if(di>domIdx) el.classList.add("done"); // older items (higher original index)
+    else if(di>domIdx) el.classList.add("done");
   });
 
-  const activeBtn=document.querySelector(".ss-style-btn.active");
-  if(activeBtn) activeBtn.classList.remove("loading");
-  document.getElementById("ssCommStatus").textContent="▶";
-
-  // Voice: Brad/Fenrir(1) for wickets & sixes, Puck/Jake(0) for fours & milestones
+  // Voice: Brad/Fenrir(1) for wickets & sixes, Jake/Puck(0) for fours & milestones
   const voiceIdx=(entry.type==="WICKET"||entry.type==="SIX")?1:(entry.type==="FOUR"||entry.type==="FIFTY"||entry.type==="HUNDRED")?0:idx%2;
 
   if(entry._syn){
-    // Synthetic ball — Web Speech only (short text, no TTS cache needed)
-    await _speakNowAsync(entry.text,"NORMAL");
+    // Synthetic ball (dot/single/two) — no voice, advance quickly
+    // Show the ball text briefly on screen, then move on
+    document.getElementById("ssCommStatus").textContent="▶";
+    await new Promise(r=>{detTimer=setTimeout(r,700);});
   } else {
-    // Key moment — use cached high-quality TTS if available, else Web Speech instantly
-    const ck=_kwCacheKey(entry);
-    if(ck&&_ttsCache[ck]){
-      await _playAudio(_ttsCache[ck]);
-    } else {
-      // INSTANT: play via Web Speech now, generate high-quality in background
-      await _speakNowAsync(jText||entry.text, entry.type);
-      const ckA=detKey+":"+detStyle+":adv:"+idx;
-      if(!_ttsCache[ckA]) _fetchTTS(jText||entry.text,voiceIdx).then(u=>{_ttsCache[ckA]=u;}).catch(()=>{});
+    // Key moment — Camb AI (Brad/Jake) primary, Gemini (Fenrir/Puck) backup
+    const ck=_kwCacheKey(entry)||detKey+":"+detStyle+":adv:"+idx;
+    if(!_ttsCache[ck]){
+      const jEl=document.getElementById("bbbj"+domIdx);
+      if(jEl) jEl.textContent="🎙️ Generating…";
+      document.getElementById("ssCommStatus").textContent="⏳";
+      try{
+        _ttsCache[ck]=await _fetchTTS(jText||entry.text,voiceIdx);
+        if(jEl) jEl.textContent="🎙️ "+jText;
+      }catch(e){
+        // TTS completely failed — skip this entry after brief pause
+        if(jEl) jEl.textContent="🎙️ "+jText;
+        await new Promise(r=>{detTimer=setTimeout(r,2000);});
+        if(detPlaying&&detPlayIdx===idx){detPlayIdx++;advancePlay();}
+        return;
+      }
     }
+    document.getElementById("ssCommStatus").textContent="▶";
+    const activeBtn=document.querySelector(".ss-style-btn.active");
+    if(activeBtn) activeBtn.classList.remove("loading");
+    if(detPlaying&&detPlayIdx===idx) await _playAudio(_ttsCache[ck]);
   }
 
   if(detPlaying&&detPlayIdx===idx){
@@ -1654,11 +1668,9 @@ async function _pollLiveCommentary(){
           _addLiveFeedEntry(ev.type,ev.text,cText);
           const vi=(ev.type==="WICKET"||ev.type==="SIX")?1:(ev.type==="FOUR")?0:_liveState.entryCount%2;
           _liveState.entryCount++;
-          // Instant audio via Web Speech API (zero latency — plays the moment a delivery is detected)
-          _speakNow(cText, ev.type);
-          // Generate Camb AI in background for cache — if ready before next ball, use it next time
+          // Camb AI primary → Gemini backup. Device voices NEVER used.
           const ck="live:"+ev.type+":"+runs+":"+wkts;
-          if(!_ttsCache[ck]) _fetchTTS(cText,vi).then(u=>{_ttsCache[ck]=u;}).catch(()=>{});
+          _fetchTTS(cText,vi).then(u=>{_ttsCache[ck]=u; _playAudio(u);}).catch(()=>{});
         }
       }
     }
