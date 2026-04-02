@@ -1154,9 +1154,10 @@ const _BBB_IMPORTANT=new Set(["WICKET","SIX","FOUR","FIFTY","HUNDRED"]);
 function renderBBB(){
   const d=matchDetails[detKey];
   if(!d||!d.bbb)return"<div style='padding:40px;text-align:center;color:#444'>Ball-by-ball coming soon</div>";
+  const ab=!_bbbImportantOnly, ib=_bbbImportantOnly;
   const filterBtn="<div style='display:flex;gap:8px;padding:8px 12px 4px;border-bottom:1px solid #1a1a1a'>"+
-    "<button onclick='_bbbImportantOnly=false;renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:"+((!_bbbImportantOnly)?"#f59e0b":"#1a1a1a")+";color:"+((!_bbbImportantOnly)?"#000":"#888")+"'>All Events</button>"+
-    "<button onclick='_bbbImportantOnly=true;renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:((_bbbImportantOnly)?"#f59e0b":"#1a1a1a")+";color:"+((_bbbImportantOnly)?"#000":"#888")+"'>⭐ Key Moments</button></div>";
+    "<button onclick='_bbbImportantOnly=false;renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:"+(ab?"#f59e0b":"#1a1a1a")+";color:"+(ab?"#000":"#888")+"'>All Events</button>"+
+    "<button onclick='_bbbImportantOnly=true;renderDetBody()' style='flex:1;padding:6px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:"+(ib?"#f59e0b":"#1a1a1a")+";color:"+(ib?"#000":"#888")+"'>⭐ Key Moments</button></div>";
   const filtered=_bbbImportantOnly?d.bbb.filter(b=>_BBB_IMPORTANT.has(b.type)):d.bbb;
   // Descending order — most recent on top
   const reversed=[...filtered].reverse();
