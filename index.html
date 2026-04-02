@@ -488,6 +488,7 @@ function updateUserUI(phone){
   document.getElementById("userAvatar").textContent=phone.slice(-2,-1).toUpperCase()||"R";
   document.getElementById("logoutSub").textContent="Logged in as +91 "+phone.slice(0,5)+"·····";
 }
+
 function toggleLogout(){ logoutOpen=!logoutOpen; document.getElementById("logoutPanel").classList.toggle("show",logoutOpen); }
 function doLogout(){
   localStorage.removeItem(LOGIN_KEY); logoutOpen=false;
@@ -1042,12 +1043,11 @@ const matchDetails = {
 // Backup:  Camb AI — Brad & Jake voices, ~50s latency
 // Instant: Web Speech API — zero latency, plays immediately always
 
-// ── GOOGLE AI STUDIO (GEMINI TTS) — backup when Camb AI is unavailable ──
-const GEMINI_TTS_KEY="AIzaSyBBdtBEu8vz6F3-OIGsD0kh_kqVmBZNbrs";
-const GEMINI_TTS_URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
+// ── TTS PROXY (Cloudflare Worker — keys never in frontend) ──
+// After deploying worker.js, replace this URL with your Worker URL:
+const PROXY="https://jaffa-tts.ravishankar.workers.dev";
 
 // ── CAMB AI ──
-const CAMB_KEY="cb4dd2e2-d591-47ec-84ab-74461d004cec";
 const CAMB_API="https://client.camb.ai/apis";
 const JAKE_ID=165325; // Jake (Streamer) – energetic
 const BRAD_ID=147337; // Brad (Commentator) – dramatic
@@ -1108,11 +1108,10 @@ function _speakNowAsync(text,type){
   });
 }
 
-// ── GEMINI TTS (Puck=energetic, Fenrir=deep/dramatic) ──
+// ── GEMINI TTS via proxy (Puck=energetic, Fenrir=deep/dramatic) ──
 async function _fetchGeminiTTS(text,voiceIdx){
-  if(!GEMINI_TTS_KEY) throw new Error("No Gemini key");
   const voiceName=voiceIdx===1?"Fenrir":"Puck";
-  const resp=await fetch(GEMINI_TTS_URL+"?key="+GEMINI_TTS_KEY,{
+  const resp=await fetch(PROXY+"/gemini/tts",{
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({
       contents:[{parts:[{text}]}],
@@ -1120,14 +1119,14 @@ async function _fetchGeminiTTS(text,voiceIdx){
         speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName}}}}
     })
   });
-  if(!resp.ok) throw new Error("Gemini "+resp.status);
+  if(!resp.ok) throw new Error("Gemini proxy "+resp.status);
   const j=await resp.json();
+  if(j.error) throw new Error("Gemini: "+j.error);
   const part=j.candidates?.[0]?.content?.parts?.[0]?.inlineData;
   if(!part?.data) throw new Error("No audio in Gemini response");
   const bin=atob(part.data);
   const arr=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-  // If raw PCM (L16), wrap in WAV header
   const mime=part.mimeType||"audio/wav";
   let blob;
   if(mime.includes("L16")||mime.includes("pcm")){
@@ -1150,25 +1149,27 @@ function _pcmToWav(pcm,sr=24000){
   return new Blob([buf],{type:"audio/wav"});
 }
 
-// ── CAMB AI TTS (Brad/Jake, ~50s) ──
+// ── CAMB AI TTS via proxy (Brad/Jake, ~50s) ──
 async function _fetchCambTTS(text,voiceIdx){
   const voiceId=_cambVoices[voiceIdx%_cambVoices.length];
-  const r1=await fetch(CAMB_API+"/tts",{
-    method:"POST",headers:{"Content-Type":"application/json","x-api-key":CAMB_KEY},
+  const r1=await fetch(PROXY+"/camb/tts",{
+    method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({text,voice_id:voiceId,language:1,gender:1,age:30})
   });
   if(!r1.ok) throw new Error("CAMB submit "+r1.status);
-  const {task_id}=await r1.json();
+  const d1=await r1.json();
+  if(d1.error) throw new Error("CAMB: "+d1.error);
+  const {task_id}=d1;
   let run_id=null;
   for(let i=0;i<30;i++){
     await new Promise(res=>setTimeout(res,2000));
-    const r2=await fetch(CAMB_API+"/tts/"+task_id,{headers:{"x-api-key":CAMB_KEY}});
+    const r2=await fetch(PROXY+"/camb/tts/"+task_id);
     const s=await r2.json();
     if(s.status==="SUCCESS"){run_id=s.run_id;break;}
     if(s.status==="FAILED") throw new Error("CAMB failed");
   }
   if(!run_id) throw new Error("CAMB timeout");
-  const r3=await fetch(CAMB_API+"/tts-result/"+run_id+"?output_type=file_url",{headers:{"x-api-key":CAMB_KEY}});
+  const r3=await fetch(PROXY+"/camb/result/"+run_id);
   const res=await r3.json();
   return res.output_url||res.url||res;
 }
@@ -1180,10 +1181,8 @@ async function _fetchTTS(text,voiceIdx){
   try{ return await _fetchCambTTS(text,voiceIdx); }
   catch(e){ console.warn("Camb AI TTS failed, trying Gemini:",e.message); }
   // BACKUP: Google AI Studio (Fenrir=1 / Puck=0)
-  if(GEMINI_TTS_KEY){
-    try{ return await _fetchGeminiTTS(text,voiceIdx); }
-    catch(e2){ console.warn("Gemini TTS also failed:",e2.message); }
-  }
+  try{ return await _fetchGeminiTTS(text,voiceIdx); }
+  catch(e2){ console.warn("Gemini TTS also failed:",e2.message); }
   throw new Error("All TTS providers failed");
 }
 
@@ -1376,24 +1375,78 @@ function _expandBBB(dk){
   const d=matchDetails[dk];
   if(!d||!d.bbb) return [];
   const t1=d.bat1?.team||"", t2=d.bat2?.team||"";
-  // Separate key moments by innings via score field prefix
   const km1={},km2={};
   (d.bbb||[]).forEach(b=>{
     const sc=b.score||"";
-    if(sc.startsWith(t1)) km1[b.over]=b;
-    else km2[b.over]=b;
+    if(sc.startsWith(t1)) km1[b.over]=b; else km2[b.over]=b;
   });
+
+  // Extract bowler + batter names from key moment texts e.g. "Khaleel Ahmed to Sooryavanshi"
+  function _extractNames(keyMap){
+    const bowlers=[], batters=[];
+    Object.values(keyMap).forEach(b=>{
+      const m=(b.text||"").match(/^([A-Z][^–—\-]+?)\s+to\s+([A-Z]\S+)/);
+      if(m){
+        const bwl=m[1].trim(), bat=m[2].trim();
+        if(bwl&&!bowlers.includes(bwl)) bowlers.push(bwl);
+        if(bat&&!batters.includes(bat)) batters.push(bat);
+      }
+    });
+    // Fallback: pull names from players list
+    if(!bowlers.length&&d.players){
+      d.players.filter(p=>p.icon==="🎯").forEach(p=>{ const n=p.name.split(" ").pop(); if(n) bowlers.push(n); });
+    }
+    if(!batters.length&&d.players){
+      d.players.filter(p=>p.icon==="🏏").forEach(p=>{ const n=p.name.split(" ").pop(); if(n) batters.push(n); });
+    }
+    return {bowlers,batters};
+  }
+
   const result=[];
-  const DOT_T=["Dot ball — well bowled.","Defended firmly, no run.","Back to the bowler. Dot.","Pushed to mid-on, no run.","Tight line — dot ball.","Good line and length, blocked."];
-  const ONE_T=["Pushed to cover for one.","Nudged to leg — quick single.","Driven to long-on, one run.","Worked to mid-wicket, single.","Tapped down to third man — one.","Clipped to fine leg for one."];
-  const TWO_T=["Driven wide of mid-on — two.","Good running, two more.","Placed into the gap — two runs.","Hit to long-off, they run two."];
-  const THREE_T=["Three runs! Well placed into the gap.","Played to the boundary rider, three."];
-  const WIDE_T=["Wide ball signalled.","Slides down leg — Wide.","Too full and wide — wide called."];
-  const NB_T=["No ball — overstepped.","No ball! Free hit coming up."];
 
   function fillInnings(keyMap,teamName,overs){
+    const {bowlers,batters}=_extractNames(keyMap);
+    const _bwl=(s)=>bowlers.length?bowlers[s%bowlers.length]:"the bowler";
+    const _bat=(s)=>batters.length?batters[s%batters.length]:"the batter";
+
+    const DOT_T=(bwl,bat)=>[
+      `${bwl} to ${bat} — good length delivery, defended solidly back down the pitch. Dot ball.`,
+      `${bwl} bowls a tight line outside off, ${bat} pushes hard at it but can't beat the fielder. Dot.`,
+      `${bwl} hits the deck hard, ${bat} plays it late and it goes straight to mid-on. No run.`,
+      `${bwl} finds a hint of movement off the pitch — ${bat} is beaten outside the edge. Dot.`,
+      `${bwl} with a full delivery, ${bat} drills it straight to cover. Well stopped. Dot.`,
+      `Tight over from ${bwl}. ${bat} blocks this one firmly — back to the bowler. Dot.`,
+    ];
+    const ONE_T=(bwl,bat)=>[
+      `${bwl} to ${bat} — worked off the pads towards mid-wicket, they scamper through for one.`,
+      `${bwl} bowls full, ${bat} drives crisply to long-off — easy single, well run.`,
+      `${bwl} angles it in, ${bat} tucks it to fine leg and calls for the quick single. One run.`,
+      `${bwl} to ${bat} — pushed to cover, batters cross for a comfortable single.`,
+      `${bwl} lands it on off stump, ${bat} taps it to mid-on and sets off immediately. One.`,
+      `${bwl} to ${bat} — flicked to square leg, they scurry back for one. Good running between the wickets.`,
+    ];
+    const TWO_T=(bwl,bat)=>[
+      `${bwl} to ${bat} — driven wide of mid-on, good running sees them come back for two.`,
+      `${bwl} overpitches, ${bat} clips it through the gap on the leg side — two runs.`,
+      `${bwl} bowls short and wide, ${bat} cuts hard but finds the fielder — they still get two with good running.`,
+      `${bwl} to ${bat} — placed into the cover gap, comfortable two.`,
+    ];
+    const THREE_T=(bwl,bat)=>[
+      `${bwl} to ${bat} — hit hard to the boundary fielder, excellent running brings them back for three!`,
+      `${bwl} drops it short, ${bat} pulls to deep mid-wicket — diving stop, three runs.`,
+    ];
+    const WIDE_T=(bwl)=>[
+      `${bwl} goes wide outside off — umpire raises the finger. Wide ball.`,
+      `${bwl} strays down the leg side — wide signalled immediately. Extra run.`,
+      `${bwl} loses his line completely, slides well outside off stump. Wide.`,
+    ];
+    const NB_T=(bwl)=>[
+      `${bwl} oversteps the crease — no ball called! Free hit next delivery.`,
+      `${bwl} drags his foot over the line — No ball! Great opportunity coming up.`,
+    ];
+
     const fullOv=Math.floor(overs), partBalls=Math.round((overs-fullOv)*10);
-    let cum=0,cumW=0;
+    let cum=0, cumW=0;
     for(let ov=1;ov<=fullOv+(partBalls>0?1:0);ov++){
       const balls=(ov===fullOv+1&&partBalls>0)?partBalls:6;
       for(let b=1;b<=balls;b++){
@@ -1405,18 +1458,18 @@ function _expandBBB(dk){
         } else {
           const s=_seed(dk+teamName+ov+b);
           const r=s%100;
+          const bwl=_bwl(s), bat=_bat(s+3);
           let runs=0,type="NORMAL",txt;
-          if(r<5){type="WIDE";txt=_rnd(WIDE_T,s);}
-          else if(r<8){type="NORMAL";runs=0;txt=_rnd(NB_T,s);}
-          else if(r<36){runs=0;type="DOT";txt=_rnd(DOT_T,s);}
-          else if(r<56){runs=1;txt=_rnd(ONE_T,s);}
-          else if(r<70){runs=2;txt=_rnd(TWO_T,s);}
-          else if(r<75){runs=3;txt=_rnd(THREE_T,s);}
-          else{runs=1;txt=_rnd(ONE_T,s);}
-          if(type!=="WIDE"&&type!=="NORMAL") type="NORMAL";
+          if(r<5){type="WIDE";txt=_rnd(WIDE_T(bwl),s);}
+          else if(r<8){runs=0;txt=_rnd(NB_T(bwl),s);}
+          else if(r<36){runs=0;type="DOT";txt=_rnd(DOT_T(bwl,bat),s);}
+          else if(r<56){runs=1;txt=_rnd(ONE_T(bwl,bat),s);}
+          else if(r<70){runs=2;txt=_rnd(TWO_T(bwl,bat),s);}
+          else if(r<75){runs=3;txt=_rnd(THREE_T(bwl,bat),s);}
+          else{runs=1;txt=_rnd(ONE_T(bwl,bat),s);}
           cum+=runs;
           const sc=teamName+" "+cum+"/"+cumW+" ("+ob+")";
-          result.push({over:ob,type:"NORMAL",text:txt,dramatic:txt,funny:txt,analytical:txt,score:sc,_syn:true});
+          result.push({over:ob,type,text:txt,dramatic:txt,funny:txt,analytical:txt,score:sc,_syn:true});
         }
       }
     }
@@ -1532,7 +1585,7 @@ async function advancePlay(){
   const domIdx=allItems.length-1-idx;
   allItems.forEach((el,di)=>{
     el.classList.remove("playing","done");
-    if(di===domIdx){el.classList.add("playing");el.scrollIntoView({behavior:"smooth",block:"center"});}
+    if(di===domIdx){el.classList.add("playing");}
     else if(di>domIdx) el.classList.add("done");
   });
 
@@ -1633,7 +1686,7 @@ async function _pollLiveCommentary(){
   if(!_liveState.active) return;
   try{
     // Fetch detailed match data — try /match first for batsmen/bowler, fall back to currentMatches
-    const r=await fetch(`${CRICKET_API_URL}/match?apikey=${CRICKET_API_KEY}&id=${_liveState.apiId}`);
+    const r=await fetch(_cricketURL("match",{id:_liveState.apiId}));
     const json=await r.json();
     if(json.status!=="success"||!json.data) throw new Error("no data");
     const md=json.data;
@@ -1749,7 +1802,7 @@ function _addLiveFeedEntry(type,text,cText){
 async function _autoFetchMatchDetails(label, apiId){
   document.getElementById("detBody").innerHTML="<div style='padding:40px;text-align:center;color:#888'>⏳ Loading match data…</div>";
   try{
-    const r=await fetch(`${CRICKET_API_URL}/matchScorecard?apikey=${CRICKET_API_KEY}&id=${apiId}`);
+    const r=await fetch(_cricketURL("matchScorecard",{id:apiId}));
     if(!r.ok) throw new Error("HTTP "+r.status);
     const json=await r.json();
     if(json.status!=="success"||!json.data) throw new Error("No data");
@@ -1843,9 +1896,12 @@ async function _autoFetchMatchDetails(label, apiId){
   }
 }
 
-// ── LIVE SCORE FETCHING ──
-const CRICKET_API_KEY="b1d83cfb-216e-4ef4-8300-41ab9645cffa";
-const CRICKET_API_URL="https://api.cricapi.com/v1";
+// ── LIVE SCORE FETCHING — routed through Cloudflare Worker proxy ──
+// CRICKET_API_KEY is stored securely in the Worker's env vars, never in frontend
+function _cricketURL(endpoint, params={}){
+  const q=new URLSearchParams(params).toString();
+  return PROXY+"/cricket/"+endpoint+(q?"?"+q:"");
+}
 
 function _teamFlag(name){
   const map={
@@ -1867,7 +1923,7 @@ function _teamFlag(name){
 
 async function fetchLiveScores(){
   try{
-    const r=await fetch(`${CRICKET_API_URL}/currentMatches?apikey=${CRICKET_API_KEY}&offset=0`);
+    const r=await fetch(_cricketURL("currentMatches",{offset:0}));
     if(!r.ok) throw new Error("HTTP "+r.status);
     const data=await r.json();
     if(data.status!=="success"||!Array.isArray(data.data)) return;
