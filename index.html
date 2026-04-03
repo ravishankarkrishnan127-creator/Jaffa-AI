@@ -286,7 +286,7 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
         <button class="ss-style-btn" id="ssBtnDramatic" onclick="startComm('dramatic',this)">🎭 Dramatic</button>
         <button class="ss-style-btn" id="ssBtnFunny" onclick="startComm('funny',this)">😂 Funny</button>
         <button class="ss-style-btn" id="ssBtnAnalytical" onclick="startComm('analytical',this)">📊 Analytical</button>
-        <button id="ssBtnPause" onclick="stopDetailPlay()" style="display:none;width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;background:#e65100;color:#fff;font-size:16px;flex-shrink:0;box-shadow:0 2px 8px rgba(230,81,0,.5)">⏸</button>
+        <button id="ssBtnPause" onclick="stopDetailPlay()" style="display:none;padding:0 14px;height:34px;border-radius:17px;border:none;cursor:pointer;background:linear-gradient(135deg,#e65100,#ff6d00);color:#fff;font-size:13px;font-weight:700;letter-spacing:.5px;flex-shrink:0;box-shadow:0 3px 12px rgba(230,81,0,.6);align-items:center;gap:5px">⏸ STOP</button>
         <span class="ss-comm-status" id="ssCommStatus"></span>
       </div>
     </div>
@@ -308,7 +308,32 @@ let errorTimer = null, logoutOpen = false, currentTab = "live";
 // ── REAL DATA (updated 3 Apr 2026) ──
 const matchData = {
   live: [],
-  upcoming: [],
+  upcoming: [
+    {
+      label:"IPL 2026 · 7th Match", badge:"upcoming",
+      team1:{flag:"🔴",name:"RCB",score:"",wkts:"",overs:""},
+      team2:{flag:"💜",name:"MI",score:"",wkts:"",overs:""},
+      status:"<span style='color:#ff9f40'>🕖 Tonight · 7:30 PM IST</span>",
+      extra:"📍 M. Chinnaswamy Stadium, Bengaluru · Apr 4, 2026",
+      result:"", listen:false
+    },
+    {
+      label:"IPL 2026 · 8th Match", badge:"upcoming",
+      team1:{flag:"🔵",name:"GT",score:"",wkts:"",overs:""},
+      team2:{flag:"🩷",name:"RR",score:"",wkts:"",overs:""},
+      status:"<span style='color:#ff9f40'>🕖 Apr 5 · 3:30 PM IST</span>",
+      extra:"📍 Narendra Modi Stadium, Ahmedabad · Apr 5, 2026",
+      result:"", listen:false
+    },
+    {
+      label:"IPL 2026 · 9th Match", badge:"upcoming",
+      team1:{flag:"💜",name:"KKR",score:"",wkts:"",overs:""},
+      team2:{flag:"🟠",name:"SRH",score:"",wkts:"",overs:""},
+      status:"<span style='color:#ff9f40'>🕖 Apr 6 · 7:30 PM IST</span>",
+      extra:"📍 Eden Gardens, Kolkata · Apr 6, 2026",
+      result:"", listen:false
+    }
+  ],
   completed: [
     {
       label:"IPL 2026 · 6th Match", badge:"completed",
@@ -1442,7 +1467,14 @@ async function _fetchCambTTS(text,voiceIdx){
   if(!run_id) throw new Error("CAMB timeout");
   const r3=await fetch(PROXY+"/camb/result/"+run_id);
   const res=await r3.json();
-  return res.output_url||res.url||res;
+  const audioUrl=res.output_url||res.url;
+  if(!audioUrl) throw new Error("No audio URL from CAMB");
+  // Fetch audio bytes immediately → convert to local blob URL so it never expires
+  // and avoids any CORS issues at playback time
+  const audioResp=await fetch(audioUrl);
+  if(!audioResp.ok) throw new Error("CAMB audio fetch "+audioResp.status);
+  const audioBlob=await audioResp.blob();
+  return URL.createObjectURL(audioBlob);
 }
 
 // ── UNIFIED TTS: Camb AI primary → Gemini AI Studio backup ──
@@ -1457,7 +1489,7 @@ async function _fetchTTS(text,voiceIdx){
   throw new Error("All TTS providers failed");
 }
 
-async function _playAudio(url){
+async function _playAudio(url, gen){
   // Stop any current audio
   if(_currentAudio){try{_currentAudio.stop();}catch(e){try{_currentAudio.pause();}catch(e2){}} _currentAudio=null;}
   return new Promise(async(resolve)=>{
@@ -1470,6 +1502,8 @@ async function _playAudio(url){
       if(!resp.ok) throw new Error("fetch "+resp.status);
       const buf=await resp.arrayBuffer();
       const decoded=await _audioCtx.decodeAudioData(buf);
+      // Guard: if a new style was clicked while we were fetching/decoding, abort
+      if(gen!==undefined&&gen!==_detGen){resolve();return;}
       const src=_audioCtx.createBufferSource();
       src.buffer=decoded;
       src.connect(_audioCtx.destination);
@@ -1681,39 +1715,47 @@ function _expandBBB(dk){
     const _bat=(s)=>batters.length?batters[s%batters.length]:"the batter";
 
     const DOT_T=(bwl,bat)=>[
-      `${bwl} ki delivery — ${bat} ne defend kar diya. Dot ball. Score nahi khula.`,
-      `${bwl} ka tight line — ${bat} kuch nahi kar paya, fielder ke haath mein seedha. Dot.`,
-      `${bwl} ne pitch pe maar ke bounce karaai — ${bat} late khela, mid-on ko seedha. Koi run nahi.`,
-      `${bwl} ne thodi si swing nikali — ${bat} edge se baal miss kiya. Dot ball.`,
-      `${bwl} full delivery — ${bat} ne cover mein drive kiya, lekin fielder ne rok liya. Dot.`,
-      `${bwl} ka bahut tight over — ${bat} ne firmly block kiya, wapas bowler ke paas. Dot.`,
+      `${bwl} ki sharp delivery outside off — ${bat} ne bade caution se forward defensive push kiya, mid-off seedha. Dot ball.`,
+      `${bwl} ka perfect yorker, full aur straight — ${bat} ke paas koi shot nahi tha, dab liya. Koi run nahi.`,
+      `${bwl} ne pitch karke movement nikali — ${bat} ka outside edge nikla lekin third slip ke zyada wide gaya. Dot.`,
+      `${bwl} body ke andar angled in — ${bat} ne glance try ki lekin square leg pe seedha gaya. Tight dot.`,
+      `${bwl} ne back-of-length tight dala — ${bat} ke bat ke paas aaya lekin koi shot nahi bana, ruk gaye. Dot.`,
+      `${bwl} ka good-length delivery off stump par — ${bat} ne push-drive kiya par cover fielder ne rok liya. Acha fielding, dot ball.`,
+      `${bwl} slow delivery with dip — ${bat} ne pehle aage badhne ki koshish ki, ruk ke defend kiya. Miscommunication, dot.`,
+      `${bwl} ne seam movement use kiya — ${bat} ka inside edge bat aur pad ke beech fas gaya. Dot.`,
     ];
     const ONE_T=(bwl,bat)=>[
-      `${bwl} ko ${bat} ne leg side kheecha — ek run ke liye dono bhaage. Ek run.`,
-      `${bwl} full dali — ${bat} ne long-off ki taraf drive kiya, aaram se ek run.`,
-      `${bwl} angled in — ${bat} ne fine leg ki taraf tuck kiya, quick single le liya. Ek run.`,
-      `${bwl} ki delivery ${bat} ne cover push kiya — aaram se cross karke ek run aaya.`,
-      `${bwl} ne off stump par dali — ${bat} ne tap karke mid-on ki taraf bheja. Ek run.`,
-      `${bwl} ko ${bat} ne square leg ki taraf flick kiya — running acchi rahi, ek run.`,
+      `${bwl} ko ${bat} ne mid-wicket ki taraf wrist flick kiya — on-side mein quick single, dono crease par safe.`,
+      `${bwl} full on middle — ${bat} ne long-on ki taraf seedha drive kiya, outfield mein daud ke ek run aaya.`,
+      `${bwl} angled across — ${bat} ne fine leg ki taraf glance kiya, gend boundary ke thoda pehle ruki, ek run aaya.`,
+      `${bwl} ki delivery thoda wide — ${bat} ne point ke upar se push kiya, gap se gend guzri lekin fielder ne aake roka. Ek run.`,
+      `${bwl} short-of-length — ${bat} ne upper cut try kiya lekin edge nahi laga, gend third man ki taraf gayi. Single.`,
+      `${bwl} ko ${bat} ne square leg flick kiya — running fast, non-striker end pe safe. Ek run.`,
+      `${bwl} ne straight on pads — ${bat} ne sweep shot kiya, fine leg ki taraf gayi, comfortable single.`,
+      `${bwl} off side pe swing — ${bat} ne late cut kiya, third man gap mein, aaram se ek run.`,
     ];
     const TWO_T=(bwl,bat)=>[
-      `${bwl} to ${bat} — mid-on ke wide drive karke, dono ne acchi daud lagai, do run aaye.`,
-      `${bwl} ne overpitch ki — ${bat} ne leg side gap mein clip kiya, do run.`,
-      `${bwl} short aur wide — ${bat} ne cut kiya, fielder tak pahuncha phir bhi do run mila.`,
-      `${bwl} to ${bat} — cover gap mein rakha, do run aaram se liya.`,
+      `${bwl} to ${bat} — mid-on ke wide se drive kiya, cover-point aur mid-off ke beech gap, dono ne acchi daud lagayi. Do run.`,
+      `${bwl} ne overpitch ki — ${bat} ne leg side mein powerful clip kiya, square leg aur mid-wicket ke beech, do run aaye.`,
+      `${bwl} short aur wide outside off — ${bat} ne square cut kiya, gully fieldder ne daud ke roka lekin do run bane.`,
+      `${bwl} ko ${bat} ne straight drive kiya, long-on ki taraf, good running ke baad do run mila.`,
+      `${bwl} angled delivery — ${bat} ne flick maar ke mid-wicket gap mein bheja, gend outfield tak pahunchi, do run.`,
+      `${bwl} ne outside off dali — ${bat} ka drive cover ke upar se gaya, fielder ne boundary pe rok ke do hi run diye.`,
     ];
     const THREE_T=(bwl,bat)=>[
-      `${bwl} to ${bat} — boundary fielder tak maari, kamaal ki running, teen run liye!`,
-      `${bwl} ne short dali — ${bat} ne deep mid-wicket pull kiya, diving stop ke bawajood teen run.`,
+      `${bwl} to ${bat} — deep mid-wicket ki taraf maari, boundary fielder ne diving stop ki lekin ek bounce ke baad teen run complete!`,
+      `${bwl} ne short dali — ${bat} ne pull shot maar ke deep square leg ki taraf bheja, fielder ne rog aaye lekin acchi running, teen run liye!`,
+      `${bwl} ki delivery outside off — ${bat} ne drive kiya, gend long-off aur long-on ke beech se nikli, quick three!`,
     ];
     const WIDE_T=(bwl)=>[
-      `${bwl} ka angle bigda — umpire ne wide signalled kiya. Extra run milega.`,
-      `${bwl} leg side mein chali gayi — wide immediately. Ek extra run.`,
-      `${bwl} apni line completely bhool gaya, off stump ke kaafi bahar. Wide.`,
+      `${bwl} ka angle bigda poori tarah — umpire ne wide signal kiya, gend leg stump ke bahut bahar gayi. Extra run milega.`,
+      `${bwl} apni run-up mein kuch gad-bad ki, delivery leg side mein wide chali gayi. Immediately wide.`,
+      `${bwl} ki yorker full toss ban gayi aur off stump se kaafi bahar — umpire ne haath uthaya. Wide.`,
+      `${bwl} ne seam try kiya lekin direction control nahi raha, leg bye area mein wide. Disappointment.`,
     ];
     const NB_T=(bwl)=>[
-      `${bwl} ne crease cross kar diya — No Ball! Agli ball free hit hogi!`,
-      `${bwl} ka paon line ke upar aaya — No Ball! Batter ke liye chance!`,
+      `${bwl} ne crease cross kar liya — umpire ne no ball call kiya! Agli delivery free hit hogi, batter ke liye chance!`,
+      `${bwl} ka paon popping crease ke upar tha — no ball signalled! Batter ab bina wicket ke khel sakta hai agli ball pe.`,
     ];
 
     const fullOv=Math.floor(overs), partBalls=Math.round((overs-fullOv)*10);
@@ -1758,6 +1800,8 @@ function _expandBBB(dk){
   const ov1=Math.min(_ovcap,parseFloat((d.bat1?.overs||String(_ovcap)+".0").replace(" ov",""))||_ovcap);
   const ov2=Math.min(_ovcap,parseFloat((d.bat2?.overs||String(_ovcap)+".0").replace(" ov",""))||_ovcap);
   fillInnings(km1,t1,ov1);
+  // Visual separator between the two innings
+  if(t2) result.push({_inningsSep:true,type:"INNINGS_SEP",text:"2nd Innings — "+t2+" Batting",score:"",over:"",_syn:false});
   fillInnings(km2,t2,ov2);
   return result;
 }
@@ -1779,9 +1823,33 @@ function renderBBB(){
     _activeBBBList=d.bbb.filter(b=>_BBB_IMPORTANT.has(b.type));
     _bbbImportantOnly=true;
   }
-  const reversed=[..._activeBBBList].reverse();
-  const items=reversed.map((b,ri)=>{
-    const i=_activeBBBList.length-1-ri;
+  // For highlights: detect innings change by score prefix and inject separator markers
+  // We build a display list (may include separator objects) separate from _activeBBBList (play list)
+  let _displayList;
+  if(_bbbSubTab==="highlights"){
+    const t1n=d.bat1?.team||"", t2n=d.bat2?.team||"";
+    _displayList=[];
+    let prevTeam=null;
+    for(const b of _activeBBBList){
+      const scoreTeam=(b.score||"").split(" ")[0];
+      if(prevTeam&&scoreTeam&&scoreTeam!==prevTeam){
+        _displayList.push({_inningsSep:true,text:"2nd Innings — "+t2n+" Batting"});
+      }
+      if(scoreTeam) prevTeam=scoreTeam;
+      _displayList.push(b);
+    }
+  } else {
+    _displayList=_activeBBBList; // everyball: separators already baked in from _expandBBB
+  }
+
+  const reversed=[..._displayList].reverse();
+  // Map only non-separator items to compute DOM index matching _activeBBBList
+  let playIdx=_activeBBBList.length-1; // tracks index in _activeBBBList (reversed)
+  const items=reversed.map((b)=>{
+    if(b._inningsSep){
+      return "<div class='bbb-innings-sep' style='display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0d1b2a;border-top:1px solid #1e3a5f;border-bottom:1px solid #1e3a5f;color:#60a5fa;font-size:11px;font-weight:700;letter-spacing:.8px;margin:4px 0'>🏏 "+b.text+"</div>";
+    }
+    const i=playIdx--;
     const isKey=_BBB_IMPORTANT.has(b.type);
     // Commentary text only shown in Highlights tab
     const jText=(isKey&&_bbbSubTab==="highlights")?b[detStyle]||b.dramatic||"":"";
@@ -1885,7 +1953,7 @@ async function _playHindiIntro(gen){
     }
     if(gen!==_detGen||!detPlaying) return;
     document.getElementById("ssCommStatus").textContent="▶";
-    await _playAudio(_ttsCache[ck]);
+    await _playAudio(_ttsCache[ck], gen);
   }catch(e){ /* intro failed — skip straight to highlights */ }
 }
 
@@ -1896,6 +1964,8 @@ async function advancePlay(gen){
   if(detPlayIdx>=bbbList.length){stopDetailPlay();return;}
   const idx=detPlayIdx;
   const entry=bbbList[idx];
+  // Skip innings separator markers silently
+  if(entry._inningsSep){detPlayIdx++;advancePlay(gen);return;}
   // Use the selected style text for TTS
   const jText=entry._syn?"":entry[detStyle]||entry.dramatic||"";
 
@@ -1938,7 +2008,7 @@ async function advancePlay(gen){
     if(gen!==_detGen||!detPlaying) return;
     document.getElementById("ssCommStatus").textContent="▶";
     _playCrowdNoise("ambient");
-    if(detPlaying&&detPlayIdx===idx) await _playAudio(_ttsCache[synCk]);
+    if(detPlaying&&detPlayIdx===idx) await _playAudio(_ttsCache[synCk], gen);
   } else {
     // Key moment — use selected style text, Camb AI→Gemini
     const ck=_kwCacheKey(entry)||detKey+":"+detStyle+":adv:"+idx;
@@ -1963,7 +2033,7 @@ async function advancePlay(gen){
     const activeBtn=document.querySelector(".ss-style-btn.active");
     if(activeBtn) activeBtn.classList.remove("loading");
     _playCrowdNoise(crowdType);
-    if(detPlaying&&detPlayIdx===idx) await _playAudio(_ttsCache[ck]);
+    if(detPlaying&&detPlayIdx===idx) await _playAudio(_ttsCache[ck], gen);
   }
 
   if(gen===_detGen&&detPlaying&&detPlayIdx===idx){
@@ -2226,12 +2296,7 @@ async function _autoFetchMatchDetails(label, apiId){
     matchDetails[label]=built;
     renderDetBody();
     if(detPlaying) return;
-    const curM=[...matchData.live,...matchData.upcoming,...matchData.completed].find(m=>m.label===label);
-    if(curM&&curM.badge==="completed"){
-      _playHindiIntro().then(()=>{if(detPlaying)advancePlay();});
-    } else {
-      setTimeout(()=>startComm("dramatic",document.getElementById("ssBtnDramatic")),400);
-    }
+    setTimeout(()=>startComm("dramatic",document.getElementById("ssBtnDramatic")),400);
   }catch(e){
     console.warn("Auto-fetch scorecard failed:",e);
     document.getElementById("detBody").innerHTML="<div style='padding:40px;text-align:center;color:#888'>📡 Live data for this match isn't available yet. Check back soon!</div>";
