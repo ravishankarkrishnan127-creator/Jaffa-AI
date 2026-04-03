@@ -11,6 +11,7 @@
  *   CAMB_KEY    = Camb AI API key
  *   GEMINI_KEY  = Google Gemini API key
  *   CRICKET_KEY = cricapi.com API key
+ *   APIFY_KEY   = Apify API token (from apify.com → Settings → Integrations → API tokens)
  *
  * NOTE: In Service Worker format, env vars are accessible as globals (not env.KEY).
  */
@@ -18,6 +19,7 @@
 const CAMB_API       = "https://client.camb.ai/apis";
 const GEMINI_TTS_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
 const CRICKET_API    = "https://api.cricapi.com/v1";
+const APIFY_API      = "https://api.apify.com/v2";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -93,13 +95,37 @@ async function handleRequest(request) {
     // ── GET /cricket/:endpoint  → cricapi.com proxy ───────────────────────
     if (path.startsWith("/cricket/") && request.method === "GET") {
       const endpoint = path.slice("/cricket/".length);
-      const ALLOWED  = new Set(["currentMatches", "match", "matchScorecard", "series", "cricScore"]);
+      const ALLOWED  = new Set(["currentMatches", "match", "matchScorecard", "match_bbb", "series", "cricScore"]);
       if (!ALLOWED.has(endpoint)) return jsonResp({ error: "Unknown endpoint" }, 400);
       const params = new URLSearchParams(url.search);
       params.set("apikey", CRICKET_KEY);
       const r = await fetch(CRICKET_API + "/" + endpoint + "?" + params.toString());
       if (!r.ok) return jsonResp({ error: "Cricket API failed", status: r.status }, r.status);
       return jsonResp(await r.json());
+    }
+
+    // ── POST /apify/cricket  → Apify ESPN Cricinfo scraper ────────────────
+    // Requires APIFY_KEY env var set in Worker secrets.
+    // Calls fingolfin/espn-cricinfo-scraper synchronously (run-sync, max 60s).
+    // Supported actions: get_live_scores, get_match_details, get_series, get_series_details
+    if (path === "/apify/cricket" && request.method === "POST") {
+      if (typeof APIFY_KEY === "undefined") {
+        return jsonResp({ error: "APIFY_KEY not configured" }, 503);
+      }
+      const body = await request.json();
+      // Use run-sync-get-dataset-items to get results in one call
+      const apifyUrl = APIFY_API + "/acts/fingolfin~espn-cricinfo-scraper/run-sync-get-dataset-items?token=" + APIFY_KEY + "&timeout=55&memory=256";
+      const r = await fetch(apifyUrl, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const errText = await r.text();
+        return jsonResp({ error: "Apify failed: " + errText, status: r.status }, r.status);
+      }
+      const items = await r.json();
+      return jsonResp({ ok: true, items: Array.isArray(items) ? items : [items] });
     }
 
     return new Response("JaffaAI Worker running. No matching route.", { status: 404, headers: CORS });
