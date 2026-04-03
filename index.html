@@ -2700,22 +2700,20 @@ async function _fetchCricapiScores(){
     if(changed) renderMatches(currentTab);
 }
 
-// ── MASTER LIVE SCORE FETCHER — ESPN first, CricAPI fallback ──
+// ── MASTER LIVE SCORE FETCHER — CricAPI runs immediately, ESPN enriches in background ──
 async function fetchLiveScores(){
-  let espnHandled=false;
-  // 1. Try ESPN Cricinfo via Apify (richer data — venue, detailed scores, match status)
-  try{
-    const espnItems=await _fetchEspnLiveScores();
-    if(espnItems&&espnItems.length>0){
-      _applyEspnToMatchData(espnItems);
-      espnHandled=true;
-      console.log("Live scores: ESPN Cricinfo ✓",espnItems.length,"matches");
-    }
-  }catch(e){ console.warn("ESPN live scores failed, trying CricAPI:",e.message); }
-
-  // 2. CricAPI fallback (or supplement) — always run to catch matches ESPN may miss
+  // 1. CricAPI runs FIRST — fast, reliable, no Worker timeout risk
   try{ await _fetchCricapiScores(); }
-  catch(e){ if(!espnHandled) console.warn("Score fetch failed:",e); }
+  catch(e){ console.warn("CricAPI fetch failed:",e); }
+
+  // 2. ESPN runs in background (non-blocking) — enriches data if it responds in time
+  // NOTE: timeout=8s on Worker side prevents crashing the Cloudflare Worker
+  _fetchEspnLiveScores().then(items=>{
+    if(items&&items.length>0){
+      _applyEspnToMatchData(items);
+      console.log("Live scores: ESPN Cricinfo enrichment ✓",items.length,"matches");
+    }
+  }).catch(()=>{}); // silently ignore ESPN errors — CricAPI already ran
 }
 
 // Apply ESPN data to matchData — updates scores, venue, status and adds new live matches
@@ -2819,9 +2817,9 @@ async function fetchEspnLiveEnrichment(){
   }
 }
 
-// Fetch on load, then every 45 seconds (ESPN calls are heavier than CricAPI)
+// Fetch on load, then every 30 seconds for live match responsiveness
 fetchLiveScores();
-setInterval(fetchLiveScores,45000);
+setInterval(fetchLiveScores,30000);
 
 </script>
 </body>
