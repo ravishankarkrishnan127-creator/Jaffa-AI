@@ -89,10 +89,12 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
 .hl-b{color:#64b5f6;font-weight:600}
 .result-banner{color:#4caf50;font-weight:700;font-size:12px;margin-top:4px}
 .bottom-nav{display:flex;justify-content:space-around;padding:10px 0 20px;background:#0a0a14;border-top:1px solid #1a1a30;flex-shrink:0}
-.nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
-.nav-icon{font-size:20px}
-.nav-label{font-size:9px;color:#444;letter-spacing:.5px;text-transform:uppercase}
-.nav-item.active .nav-label{color:#1565c0}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:6px 0;border-radius:10px;transition:background .15s}
+.nav-item:active{background:rgba(21,101,192,.15)}
+.nav-icon{font-size:22px}
+.nav-label{font-size:10px;color:#555;letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+.nav-item.active .nav-icon{filter:drop-shadow(0 0 6px #1565c0)}
+.nav-item.active .nav-label{color:#60a5fa}
 #loadingFlash{position:absolute;inset:0;background:#0d0d1a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:200;transition:opacity .5s ease}
 #loadingFlash.gone{opacity:0;pointer-events:none}
 .loading-logo{font-size:32px;font-weight:900;letter-spacing:2px}
@@ -243,10 +245,8 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
     </div>
     <div class="matches-list" id="matchList"></div>
     <div class="bottom-nav">
-      <div class="nav-item active"><div class="nav-icon">🏏</div><div class="nav-label">Matches</div></div>
-      <div class="nav-item"><div class="nav-icon">🎙️</div><div class="nav-label">Commentary</div></div>
-      <div class="nav-item"><div class="nav-icon">📊</div><div class="nav-label">Stats</div></div>
-      <div class="nav-item"><div class="nav-icon">⚙️</div><div class="nav-label">Settings</div></div>
+      <div class="nav-item" onclick="switchBottomTab('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+      <div class="nav-item active" onclick="switchBottomTab('matches',this)"><div class="nav-icon">🏏</div><div class="nav-label">Matches</div></div>
     </div>
     <div id="logoutPanel">
       <div class="logout-title">Sign out?</div>
@@ -286,8 +286,10 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
         <button class="ss-style-btn" id="ssBtnDramatic" onclick="startComm('dramatic',this)">🎭 Dramatic</button>
         <button class="ss-style-btn" id="ssBtnFunny" onclick="startComm('funny',this)">😂 Funny</button>
         <button class="ss-style-btn" id="ssBtnAnalytical" onclick="startComm('analytical',this)">📊 Analytical</button>
-        <button id="ssBtnPause" onclick="stopDetailPlay()" style="display:none;padding:0 14px;height:34px;border-radius:17px;border:none;cursor:pointer;background:linear-gradient(135deg,#e65100,#ff6d00);color:#fff;font-size:13px;font-weight:700;letter-spacing:.5px;flex-shrink:0;box-shadow:0 3px 12px rgba(230,81,0,.6);align-items:center;gap:5px">⏸ STOP</button>
         <span class="ss-comm-status" id="ssCommStatus"></span>
+      </div>
+      <div id="ssPauseRow" style="display:none;margin-top:6px;padding:0 2px">
+        <button id="ssBtnPause" onclick="stopDetailPlay()" style="width:100%;height:36px;border-radius:18px;border:none;cursor:pointer;background:linear-gradient(135deg,#e65100,#ff6d00);color:#fff;font-size:13px;font-weight:700;letter-spacing:.5px;box-shadow:0 3px 12px rgba(230,81,0,.5);display:flex;align-items:center;justify-content:center;gap:6px">⏸ &nbsp;STOP COMMENTARY</button>
       </div>
     </div>
     <div class="det-tabs">
@@ -514,6 +516,17 @@ function updateUserUI(phone){
   document.getElementById("logoutSub").textContent="Logged in as +91 "+phone.slice(0,5)+"·····";
 }
 
+function switchBottomTab(tab, el){
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  if(el) el.classList.add("active");
+  if(tab==="home"){
+    // Home: scroll to top of matches screen, switch to live tab
+    switchTab(document.querySelector(".tab"), "live");
+    window.scrollTo(0,0);
+  } else if(tab==="matches"){
+    renderMatches(currentTab);
+  }
+}
 function toggleLogout(){ logoutOpen=!logoutOpen; document.getElementById("logoutPanel").classList.toggle("show",logoutOpen); }
 function doLogout(){
   localStorage.removeItem(LOGIN_KEY); logoutOpen=false;
@@ -666,42 +679,42 @@ const matchDetails = {
       {over:"1.6",type:"FOUR",text:"Travis Head — backs away to leg, slashes Arora hard through point! Flat, fast, FOUR! Head in full flow!",
        dramatic:"HEAD NE MAAR DIYA! Point ke paar flat shot — Arora ka over 18 run mein gaya! SRH danger zone pe!",
        funny:"Head ne backing away kiya aur point mein slash maar diya! Arora bhai, aaj ka din mushkil wala hai yaar!",
-       analytical:"Head creates room backing away, slashes full-length delivery through point gap. Classic Head stroke — hard hands, minimal feet movement. SRH 18/0 (1.6).",
+       analytical:"Head ne backing away karke point mein slash kiya — haath mazboot, pair zyada nahi hilaye. Classic Head stroke. SRH 18 bina wicket (1.6).",
        score:"SRH 18/0 (1.6)"},
       {over:"2.3",type:"SIX",text:"Abhishek Sharma — steps out to Vaibhav Arora, slog-sweeps it flat over deep mid-wicket! SIX! SRH flying!",
        dramatic:"ABHISHEK NE MAAR DIYA! Second over mein hi SIX! Eden Gardens mein SRH ka josh!",
        funny:"Arora ne length ball daali, Abhishek ne bola — yahan nahi, wahan! Mid-wicket ke upar relocate! SIX!",
-       analytical:"Abhishek ne length jaldi pad liya, slog-sweep ke liye position set kiya. Flat aur fast, deep mid-wicket ke upar. SRH early aggression dikh raha hai. SRH 22/0.",
+       analytical:"Abhishek ne length jaldi samjha, slog-sweep ke liye jald set hua. Flat aur fast, deep mid-wicket ke upar. SRH shuruat mein hi aggressive. SRH 22 bina wicket.",
        score:"SRH 22/0 (2.3)"},
       {over:"3.2",type:"FOUR",text:"Travis Head — pulls Muzarabani's short ball hard to deep square leg! Flat, powerful, goes to the rope! FOUR!",
-       dramatic:"HEAD KA PULL SHOT! Muzarabani ke 90mph bouncer ko deep square mein bheja! Kya power hai yaar!",
-       funny:"Muzarabani ne 90mph bouncer daala, Head ne 'thank you' bolke pull maar diya! Deep square leg fielder: 'main kuch nahi kar sakta tha!'",
-       analytical:"Muzarabani back of length — Head swivels on back foot, flat pull to deep square leg. Excellent weight transfer. Goes to boundary on the bounce. SRH 40/0 (3.2).",
+       dramatic:"HEAD KA PULL SHOT! Muzarabani ki short ball ko deep square mein bheja! Kya power hai yaar!",
+       funny:"Muzarabani ne bouncer daala, Head ne 'thank you' bolke pull maar diya! Deep square leg fielder: 'main kuch nahi kar sakta tha!'",
+       analytical:"Muzarabani ki back of length delivery — Head ne back foot pe ghoomke flat pull kiya deep square leg mein. Zabardast weight transfer. Bounce pe boundary. SRH 40 bina wicket (3.2).",
        score:"SRH 40/0 (3.2)"},
       {over:"3.5",type:"FOUR",text:"Abhishek Sharma — reverse sweeps Anukul Roy through backward point! Audacious stroke! FOUR!",
        dramatic:"REVERSE SWEEP! Abhishek ne off-spin ko ulta maar diya! Backward point ke paar — kya confidence hai yaar!",
        funny:"Anukul Roy spin bowler hai, par Abhishek ne reverse sweep maar di! Anukul bhai, yeh planning mein tha kya? Nahi tha na? FOUR!",
-       analytical:"Abhishek reverse sweeps Anukul Roy's arm ball — risky but perfectly executed. Backward point gap, races to the boundary. Shows tremendous confidence against spin early. SRH 50/0 (3.5).",
+       analytical:"Abhishek ne Anukul ki arm ball ko reverse sweep kiya — thoda risky, par bilkul sahi. Backward point mein ball tez gayi. Spin ke against itna confidence pehle hi over mein — gajab. SRH 50 bina wicket (3.5).",
        score:"SRH 50/0 (3.5)"},
       {over:"4.3",type:"FOUR",text:"Travis Head — elegant straight drive off Anukul Roy! High elbow, perfect timing, splits mid-off and mid-on! FOUR!",
        dramatic:"HEAD KI STRAIGHT DRIVE! Anukul ko seedha bowler ke upar se bheja — butter smooth! Kya cricketer hai yaar!",
        funny:"Head ne straight drive maar di — Anukul ke haath ke paas se gayi! Anukul ne haath hataya tha ya ball khud hati? Samjha nahi!",
-       analytical:"Head drives full delivery from Anukul straight down the ground. High elbow position, textbook straight drive. Mid-off couldn't reach. SRH 62/0 (4.3).",
+       analytical:"Head ne Anukul ki full delivery straight drive ki — hath upar, perfect position. Mid-off tak ball pahunchi hi nahi. Textbook straight drive. SRH 62 bina wicket (4.3).",
        score:"SRH 62/0 (4.3)"},
       {over:"4.5",type:"SIX",text:"Travis Head — backs away, crashes Muzarabani through extra cover on the up! Unbelievable timing! SIX!",
-       dramatic:"HEAD NE MAAR DIYA! Muzarabani ko 94mph ke saath thoka — puri shakti laga di!",
-       funny:"Muzarabani 94mph pe bowl kar raha hai! Head ne bakaya aur drive maar diya! Bhai, ball abhi bhi ja rahi hai!",
-       analytical:"Head ne room banaya back away karke, extra cover mein drive. Significant pace ke khilaf pure timing. SRH 56/0 — powerplay mein dominance.",
+       dramatic:"HEAD NE MAAR DIYA! Muzarabani ki tez gend ko extra cover ke upar uthha diya — puri shakti laga di!",
+       funny:"Muzarabani tez bowl kar raha hai! Head ne backing away kiya aur drive maar diya! Bhai, ball abhi bhi ja rahi hai!",
+       analytical:"Head ne backing away karke extra cover mein drive ki. Tez bowling ke khilaf pure timing. SRH 56 bina wicket — powerplay mein dominance.",
        score:"SRH 56/0 (4.5)"},
       {over:"5.4",type:"WICKET",text:"Muzarabani to Travis Head — bouncer, top edge to fine leg! Caught! Head goes for 46!",
        dramatic:"WICKET! HEAD OUT! 46 off 21 — Muzarabani ne nikaala! Bouncers ka jawaab nahi diya aakhir!",
        funny:"Head ne 46 off 21 banaye aur phir out ho gaye. Uske standards ke hisaab se yeh thoda disappointing hai yaar — lekin hum sab khush hain!",
-       analytical:"Muzarabani ka bouncer Head ko hurry kar gaya. Top edge, fine leg pe catch. Head out 46 off 21. 6 overs mein 82 run ki partnership. SRH 82/1 (5.4).",
+       analytical:"Muzarabani ka bouncer Head ko hurry mein le gaya. Top edge, fine leg pe catch. Head out 46 off 21. 6 overs mein 82 run ki partnership. SRH 82 ek wicket pe (5.4).",
        score:"SRH 82/1 (5.4)"},
       {over:"6.2",type:"FOUR",text:"Abhishek Sharma — cuts Anukul Roy hard through backward point! Still aggressive after Head's departure! FOUR!",
        dramatic:"ABHISHEK NE MAAR DIYA! Head gaye, par yeh ladka nahi ruka! Cut shot backward point pe — SRH ka junoon jaari!",
        funny:"Head ko wicket mili, lekin Abhishek ne ek naazar bhi wahan nahi daali! Cut shot FOUR! 'Main khelne aaya hoon' — message clear!",
-       analytical:"Post Head wicket — Abhishek reasserts himself immediately with a cut through backward point. Short delivery outside off, square cut, races to boundary. Excellent temperament. SRH 90/1 (6.2).",
+       analytical:"Head ke jaane ke baad Abhishek ne turant cut shot maar ke apni taakat dikhayi. Off stump ke bahar short delivery, square cut, tezi se boundary. Jabarjast temperament. SRH 90 ek wicket pe (6.2).",
        score:"SRH 90/1 (6.2)"},
       {over:"7.2",type:"FOUR",text:"Abhishek Sharma — whips Sunil Narine off the pads through mid-wicket! Goes all the way! FOUR! SRH 100+!",
        dramatic:"ABHISHEK NE NARINE KO MAAR DIYA! Mid-wicket boundary! SRH 100 cross ho gaya — kya innings hai yaar!",
@@ -711,22 +724,22 @@ const matchDetails = {
       {over:"8.3",type:"WICKET",text:"Muzarabani to Abhishek Sharma — driven in the air to mid-off! OUT for 48! SRH 111/3.",
        dramatic:"ABHISHEK OUT! 48 off 21 — Muzarabani 3rd wicket! Kya spell hai bhai — pace ka jawaab nahi!",
        funny:"48 off 21 banaaye aur phir bhi out! Bhai SRH mein standard itna high hai — 48 pe nikle toh disappointment! Wah re wah!",
-       analytical:"Muzarabani ne Abhishek ko 48 pe dismiss kiya — over ka teesra wicket! SRH 111/3 (8.4). Muzarabani 3 wicket pe. KKR ne wapsi ki.",
+       analytical:"Muzarabani ne Abhishek ko 48 pe dismiss kiya. SRH 111 teen wicket pe (8.4). Muzarabani 3 wicket le chuka. KKR ne thodi wapsi ki.",
        score:"SRH 111/3 (8.3)"},
       {over:"9.4",type:"FOUR",text:"Heinrich Klaasen — paddle sweeps Vaibhav Arora fine! Beats the fine leg fielder! FOUR! Klaasen announcing himself!",
        dramatic:"KLAASEN NE MAAR DIYA! Paddle sweep fine — Arora ke plan ki dhajjiyan! SRH tab bhi rukhne wali nahi!",
        funny:"Klaasen ne paddle sweep kiya aur ball itni tez gayi ki fine leg fielder ab bhi dhundh raha hai! FOUR! Welcome to the party, Heinrich!",
-       analytical:"Klaasen's first major statement — paddle sweep off Arora to fine leg boundary. Good foot movement, subtle wrist work. Shows touch against pace. SRH 124/4 (9.4).",
+       analytical:"Klaasen ka pehla bada shot — Arora ko paddle sweep fine leg mein. Achhi footwork, zyada force nahi, sirf wrist. Pace ke against touch dikh raha hai. SRH 124 chaar wicket pe (9.4).",
        score:"SRH 124/4 (9.4)"},
       {over:"11.3",type:"FOUR",text:"Klaasen — lofts Anukul Roy over extra cover on the up! FOUR! Big bat swing, races to the fence!",
        dramatic:"KLAASEN KA LOFTED DRIVE! Anukul ko cover ke upar bheja! Yeh Klaasen form mein aa gaya — SRH danger mein hai agar yeh chal gaya!",
        funny:"Klaasen ne lofted drive maar di — Anukul bhai, spin daalne se sirf batsmen khush ho rahe hain aaj! FOUR!",
-       analytical:"Klaasen drives Anukul on the up over extra cover — takes the aerial route. Good timing, gets good elevation. Mid-off didn't have a chance. SRH 148/4 (11.3).",
+       analytical:"Klaasen ne Anukul ko extra cover ke upar on the up drive kiya — aerial route liya. Timing achi, ball kaafi upar gayi. Mid-off kuch nahi kar saka. SRH 148 chaar wicket pe (11.3).",
        score:"SRH 148/4 (11.3)"},
       {over:"13.2",type:"FIFTY",text:"Heinrich Klaasen — reverse sweeps Anukul Roy for FOUR to bring up his fifty! 50 off 32 — class!",
        dramatic:"KLAASEN KI FIFTY! 32 balls mein! Yeh dangerous hai — aur abhi toh 7 overs baaki hain!",
        funny:"Klaasen ne reverse sweep maar ke FIFTY liya! Backward point ka fielder nahi hila — samajhdaari ki! Kuch nahi kar sakta tha bhai!",
-       analytical:"Klaasen 50 off 32 deliveries, SR 156. Reverse sweep uski signature shot hai. SRH 168/4 — 220+ ke track pe clearly.",
+       analytical:"Klaasen 50 off 32 balls, SR 156. Reverse sweep unki signature shot hai — usse rokna mushkil. SRH 168 chaar wicket pe — 220 se upar clearly track pe.",
        score:"SRH 168/4 (13.2)"},
       {over:"14.4",type:"FOUR",text:"Klaasen — reverse sweeps Vaibhav Arora over backward point! FOUR! Klaasen's reverse game is unplayable!",
        dramatic:"REVERSE SWEEP AGAIN! Klaasen ne Arora ka plan hi badal diya! Backward point ke paar — koi plan nahi hai inke against!",
@@ -741,22 +754,22 @@ const matchDetails = {
       {over:"19.6",type:"SIX",text:"Nitish Reddy — launches the last ball over long-on! SRH finish 226/8! Monster total!",
        dramatic:"226! 226! NITISH REDDY NE MAAR DIYA! 20th over ki last ball — CHHA! KKR ko ab miracle chahiye!",
        funny:"Innings ki last ball pe SIX! SRH 226! Eden Gardens mein KKR fans ekdum chup ho gaye — kya karte bechare!",
-       analytical:"Nitish Reddy 39 off 28, innings last ball pe maximum. SRH 226/8 — IPL 2026 ka sabse bada total ab tak. KKR ke liye bahut bada target.",
+       analytical:"Nitish Reddy 39 off 28, innings ki aakhiri ball pe chhakka. SRH 226 aath wicket pe — IPL 2026 ka ab tak ka sabse bada total. KKR ke liye bahut bada parvat.",
        score:"SRH 226/8 (20.0)"},
       {over:"1.1",type:"FOUR",text:"Finn Allen — slaps Harsh Dubey hard through the point gap! First ball of the chase, FOUR! KKR mean business!",
        dramatic:"PEHLI BALL PE CHAAR! Allen ne Dubey ki pehli hi ball ko point mein ghusa diya! Eden Gardens mein roar — 227 chahiye, pehle 4 le liye!",
        funny:"Allen ne pehli ball pe hi FOUR maar di! Strategy hai: '227 chahiye? Chhoti baat, pehle 4 le lete hain!' Solid plan bhai!",
-       analytical:"Allen backs away and slaps Dubey's first delivery through the point gap. Instant aggression — sets the tone for what KKR need to do. SR 400 from ball one. KKR 4/0 (1.1).",
+       analytical:"Allen ne backing away karke Dubey ki pehli hi ball point mein slap ki. Seedha attack — KKR ko yahi chahiye. Pehli ball se SR 400. KKR 4 bina wicket (1.1).",
        score:"KKR 4/0 (1.1)"},
       {over:"1.3",type:"SIX",text:"Finn Allen — steps down to Harsh Dubey, slog-sweeps it over long-on! 28 in 7 balls — KKR flying!",
        dramatic:"FINN ALLEN! Pehle hi over mein 28 runs! Yeh toh rocket start hai bhai — lekin 227 chahiye!",
        funny:"227 chahiye, Allen ne socha — abhi 28 le lete hain! Strategy solid hai bhai, koi complaint nahi!",
-       analytical:"Allen ne ball one se attack kiya — 28 off 7, SR 400. Bilkul waisi start jis ki KKR ko zaroorat thi. Lekin sustain kar payega?",
+       analytical:"Allen ne pehli ball se hi attack kiya — 7 balls mein 28, SR 400. KKR ko bilkul isi tarah ki shuruat chahiye thi. Par kya yeh pace tik payegi?",
        score:"KKR 28/0 (1.3)"},
       {over:"1.6",type:"FOUR",text:"Finn Allen — chases a wide one from Dubey, drives hard through covers! FOUR! 28 off 7 balls — extraordinary start!",
        dramatic:"PHIR CHAAR! Allen ke 7 balls mein 28 run! Eden Gardens ka maidan kaanp raha hai — yeh toh humongous start hai!",
        funny:"Allen 7 balls mein 28 run! Dubey ke over mein zyada run hain jinhe count karna nahi aata! Bhai, scoreboard thak gaya!",
-       analytical:"Allen drives wide delivery through covers — 7th ball, 28th run. SR 400. Extraordinary powerplay burst but sustainability is the question. KKR 28/0 (1.6).",
+       analytical:"Allen ne wide delivery ko covers mein drive kiya — 7 balls, 28 run. SR 400. Gadar powerplay burst, par tik sakta hai kya? KKR 28 bina wicket (1.6).",
        score:"KKR 28/0 (1.6)"},
       {over:"2.1",type:"WICKET",text:"Harsh Dubey to Allen — flighted, Allen charges and miscues to long-on! OUT for 28! KKR 32/1.",
        dramatic:"ALLEN OUT! Harsh Dubey ne nikaala! 28 off 7 balls — yaar, ek over bhi nahi chala! KKR 32/1.",
@@ -766,52 +779,52 @@ const matchDetails = {
       {over:"4.2",type:"FOUR",text:"Angkrish Raghuvanshi — cuts Sunil Narine to third man! Back-foot punch, FOUR! Playing with real maturity at 19!",
        dramatic:"RAGHUVANSHI NE NARINE KO MAAR DIYA! Cut shot third man pe — 19 saal ka ladka, maar itna mature cricket! KKR mein ek nayi umeed!",
        funny:"Narine spin kar raha hai, Raghuvanshi ne cut maar diya — fielder ne sirf ball baahar jaate dekha! FOUR! Youth power is real yaar!",
-       analytical:"Raghuvanshi cuts Narine's stock delivery to third man — back-foot punch, controlled. At 19, this reading of quality spin bowling is very impressive. KKR 58/2 (4.2).",
+       analytical:"Raghuvanshi ne Narine ki stock ball ko third man mein cut kiya — back foot pe controlled punch. 19 saal ki umar mein quality spin padh lena — bahut impressed. KKR 58 do wicket pe (4.2).",
        score:"KKR 58/2 (4.2)"},
       {over:"5.5",type:"FOUR",text:"Raghuvanshi — pulls Washington Sundar's short ball to deep mid-wicket! Goes to the rope! FOUR! KKR building!",
        dramatic:"PULL SHOT! Raghuvanshi ne Sundar ko uthha diya! Deep mid-wicket boundary! Yeh ladka rukne wala nahi hai!",
        funny:"Sundar ne short daali, Raghuvanshi ne uthha diya! Deep mid-wicket fielder: 'main try kiya tha yaar!' FOUR!",
-       analytical:"Raghuvanshi swivels on back foot, flat pull off Sundar's short delivery. Goes to deep mid-wicket rope. KKR 72/2 (5.5). Building nicely despite pressure.",
+       analytical:"Raghuvanshi ne back foot pe ghoomke Sundar ki short ball flat pull kiya deep mid-wicket pe. Rope tak pahunchi. KKR 72 do wicket pe (5.5). Pressure mein bhi sahi build kar raha hai.",
        score:"KKR 72/2 (5.5)"},
       {over:"7.3",type:"FOUR",text:"Raghuvanshi — drives Harshal Patel straight down the ground! Splits mid-off and mid-on! FOUR! Class innings!",
        dramatic:"STRAIGHT DRIVE! Raghuvanshi ne Harshal ko seedha bheja! Mid-off aur mid-on ke beech se! Textbook cricket!",
        funny:"Raghuvanshi ne straight drive maar di — Harshal ke do fielder beech mein khade the, aur ball unke beech se nikal gayi! Planning fail!",
-       analytical:"Raghuvanshi drives Harshal's full delivery straight through the gap between mid-off and mid-on. Good reach, high elbow. Solid technique vs pace. KKR 82/3 (7.3).",
+       analytical:"Raghuvanshi ne Harshal ki full delivery straight drive ki — mid-off aur mid-on ke beech se. Achhi reach, hath upar. Pace ke against solid technique. KKR 82 teen wicket pe (7.3).",
        score:"KKR 82/3 (7.3)"},
       {over:"8.5",type:"FIFTY",text:"Angkrish Raghuvanshi — cuts Dubey to third man for two! FIFTY off 27 balls! KKR hope alive!",
        dramatic:"ANGKRISH KI FIFTY! 27 BALLS MEIN! Yeh ladka — future star hai bhai! KKR ko teri zaroorat hai!",
        funny:"FIFTY! Angkrish 19 saal ka hai aur 50 maar diya! Bhai, mujhe sirf dekhne mein hi thakaan ho gayi!",
-       analytical:"Raghuvanshi 50 off 27 deliveries. Pressure mein class innings. KKR 94/3 — zinda hai abhi, lekin run rate tez chadh raha hai.",
+       analytical:"Raghuvanshi 50 off 27 balls. Pressure mein class innings. KKR 94 teen wicket pe — zinda hai, par run rate tezi se badh raha hai.",
        score:"KKR 94/3 (8.5)"},
       {over:"9.3",type:"FOUR",text:"Raghuvanshi — sweeps Sundar fine, beats the fielder at fine leg! FOUR! Post-fifty he's still going!",
        dramatic:"50 ke baad bhi FOUR! Raghuvanshi ruk nahi raha — Sundar ko sweep maar di! KKR ki umeed taza hai!",
        funny:"FIFTY ke baad Raghuvanshi ne socha — 'abhi toh shuru kiya hai'! Sundar sweep ke liye FOUR! Bhai, kya momentum hai!",
-       analytical:"Raghuvanshi's sweep off Sundar, fine of mid-wicket — fine leg couldn't cut it off. Post-fifty continuation. KKR 100/3 (9.3). 127 more needed off 63 balls.",
+       analytical:"Raghuvanshi ne Sundar ko sweep kiya fine leg ki taraf — fine leg rok nahi saka. Fifty ke baad bhi momentum jaari. KKR 100 teen wicket pe (9.3). 63 balls mein 127 chahiye.",
        score:"KKR 100/3 (9.3)"},
       {over:"10.5",type:"FOUR",text:"Raghuvanshi — cuts Harshal Patel hard through backward point! FOUR! 5th four of the innings — what a knock!",
        dramatic:"FIFTH FOUR! Raghuvanshi 5 chauke maar ke bata raha hai — yeh innings special hai! Par KKR ko aur chahiye yaar!",
        funny:"Harshal ne short daali, Raghuvanshi ne cut maar diya! Backward point: 'main try bhi karta toh kuch nahi hota!' CHAAR!",
-       analytical:"Raghuvanshi cuts Harshal's short delivery through backward point — fifth four of the innings. 5x4, 3x6. Batting on SR 155+ now. KKR 112/4 (10.5).",
+       analytical:"Raghuvanshi ne Harshal ki short ball backward point mein cut ki — paanchwaan chaukka. 5 chauke, 3 chhakke. SR 155 se upar. KKR 112 chaar wicket pe (10.5).",
        score:"KKR 112/4 (10.5)"},
       {over:"12.4",type:"WICKET",text:"Jaydev Unadkat to Raghuvanshi — full, driven to mid-off! OUT for 52! KKR 118/5.",
        dramatic:"RAGHUVANSHI OUT! 52 off 29 — Unadkat ne nikaala! KKR ka hope khatam ho raha hai — 109 chahiye 44 balls mein!",
        funny:"52 off 29 ke baad out! Equation: 44 balls mein 109. Umeed rakh sakte ho, lekin recommend nahi karta yaar!",
-       analytical:"Raghuvanshi out 52 off 29 — zabardast knock lekin kaafi nahi. KKR 118/5. Required rate 14.9. Rinku Singh last hope bache hain.",
+       analytical:"Raghuvanshi out 52 off 29 — zabardast knock par kaafi nahi pada. KKR 118 paanch wicket pe. Required rate 14.9. Rinku Singh hi ab ek umeed.",
        score:"KKR 118/5 (12.4)"},
       {over:"14.3",type:"FOUR",text:"Rinku Singh — late cuts Jaydev Unadkat to third man! FOUR! Rinku making his presence felt!",
        dramatic:"RINKU SINGH NE MAAR DIYA! Late cut third man pe! Woh sirf SIX nahi, FOUR bhi maar sakta hai! Come on KKR!",
        funny:"Rinku Singh aaya, fielder boundary pe shift ho gaye — Rinku ne late cut FOUR maar di! Dekho toh sahi — SIX mein toh boundary nahi jaata yaar!",
-       analytical:"Rinku Singh's late cut off Unadkat to third man. Needed 78 from 34 — runs important here. KKR 131/5 (14.3). Required rate climbing past 13.",
+       analytical:"Rinku ne Unadkat ko late cut kiya third man mein. 34 balls mein 78 chahiye — har run zaroori hai. KKR 131 paanch wicket pe (14.3). Required rate 13 se upar ja raha hai.",
        score:"KKR 131/5 (14.3)"},
       {over:"16.4",type:"FOUR",text:"Rinku Singh — charges Washington Sundar, lofts him down the ground! FOUR! Rinku giving KKR a last fight!",
        dramatic:"RINKU NE SUNDAR KO MAAARA! Straight drive lofted — Bengal ka sher zinda hai! Last hope yaar!",
        funny:"Rinku down the pitch, Sundar shocked — lofted drive FOUR! Bengal mein abhi bhi lights on hain! Kuch toh baaki hai!",
-       analytical:"Rinku charges Sundar, lofts through extra cover for four. KKR 148/6 (16.4). 34 needed off 20 balls — still possible but requires perfection. Time running out.",
+       analytical:"Rinku ne Sundar ko charge karke extra cover mein lofted four maari. KKR 148 chhe wicket pe (16.4). 20 balls mein 34 chahiye — mushkil hai par impossible nahi. Waqt kam hai.",
        score:"KKR 148/6 (16.4)"},
       {over:"18.3",type:"WICKET",text:"Unadkat to Harshit Rana — bowled! KKR all out 161! SRH WIN BY 65 RUNS!",
        dramatic:"ALL OUT! KKR 161! SRH JEET GAYI 65 runs se! Unadkat ne finish kiya! Pehli defending team bani SRH!",
        funny:"KKR 161 pe all out, 227 ka chase! Eden Gardens bilkul silent ho gaya. Reflection ka moment. Aur Unadkat muskuraa diya!",
-       analytical:"KKR 161 ao, 65 run short. SRH IPL 2026 mein pehli defending team bani. Muzarabani 4/41, Unadkat 3/28 key performers.",
+       analytical:"KKR 161 pe all out, 65 run kam pade. SRH IPL 2026 mein pehli defending team bani. Muzarabani 4/41, Unadkat 3/28 — dono key rahe.",
        score:"KKR 161 ao (18.3)"}
     ],
     bat1:{
@@ -880,17 +893,17 @@ const matchDetails = {
       {over:"2.2",type:"WICKET",text:"Lungi Ngidi to Rishabh Pant — full and swinging, Pant drives outside the line! Edged behind! OUT for 8!",
        dramatic:"PANT OUT! Ngidi ne pehle hi over mein nikaala! LSG ke captain gaye — shuru mein hi dhakka!",
        funny:"Rishabh Pant tried to drive Lungi Ngidi. This is technically called a 'choice'. Not always a good one.",
-       analytical:"Ngidi angles one across Pant. The drive is on but there's enough swing — Pant edges behind. LSG lose captain early. 14/1.",
+       analytical:"Ngidi ne Pant ko bahar angle kiya — swing thi, edge gaya keeper ke haath. LSG captain jaldi out. LSG 14 ek wicket pe. Shuru se peeche.",
        score:"LSG 14/1 (2.2)"},
       {over:"4.5",type:"WICKET",text:"Ngidi to Matthew Breetzke — short ball, pulls straight to deep square! OUT for 6! LSG 28/2.",
        dramatic:"WICKET! Ngidi phir se! Breetzke ka pull shot — seedha fielder ke haath! Ngidi kya spell hai!",
        funny:"Breetzke pulled Ngidi straight to the fielder at deep square. The fielder said 'thank you'. Breetzke said nothing.",
-       analytical:"Ngidi second wicket. Breetzke pulls to the man. LSG 28/2 in powerplay. Shami must rebuild but the run rate will suffer.",
+       analytical:"Ngidi ka doosra wicket. Breetzke ka pull shot seedha fielder ke haath. LSG 28 do wicket pe powerplay mein. Ab rebuild karna hoga, run rate takleef mein.",
        score:"LSG 28/2 (4.5)"},
       {over:"7.3",type:"WICKET",text:"Ngidi to Nicholas Pooran — bouncer, gloves it to KL Rahul! OUT for 14! LSG 47/3.",
        dramatic:"NGIDI HAT-TRICK WICKET! Pooran ka glove shot — KL Rahul ne haath uthhai! Ngidi 3/27! UNREAL!",
        funny:"Ngidi has taken 3 wickets. LSG have 47 runs. These numbers do not inspire confidence in each other.",
-       analytical:"Ngidi gets his third — Pooran gloves a bouncer to keeper Rahul. 3/27 off 3.4 overs. LSG 47/3. Without Pant, the middle order struggle is real.",
+       analytical:"Ngidi ka teesra wicket — Pooran ne bouncer ko gloves se chhua, keeper Rahul ne liya. 3.4 overs mein 3 wicket ek hi bowler ke. LSG 47 teen wicket pe. Pant ke bina middle order struggle.",
        score:"LSG 47/3 (7.3)"},
       {over:"8.4",type:"FOUR",text:"Abdul Samad — slashes a short ball from Axar Patel through point! FOUR! Samad refusing to give up!",
        dramatic:"SAMAD NE MAAR DIYA! Point mein slash — LSG toot nahi raha abhi! Samad lad raha hai akele!",
@@ -900,37 +913,37 @@ const matchDetails = {
       {over:"9.6",type:"FOUR",text:"Aiden Markram — drives Kuldeep Yadav through covers! Gorgeous timing! FOUR! LSG pair fighting!",
        dramatic:"MARKRAM NE MAAR DIYA! Cover drive Kuldeep ke against — beautiful shot! LSG mein ek aur khelne wala jaga!",
        funny:"Markram ne Kuldeep ki spin ko cover mein drive maar diya! Kuldeep bhai, yeh plan kaam nahi kiya — next plan ready karo!",
-       analytical:"Markram drives Kuldeep's full delivery through extra cover — good bat speed, minimal footwork. LSG building a platform after early collapse. LSG 84/3 (9.6).",
+       analytical:"Markram ne Kuldeep ki full delivery extra cover mein drive ki — achhi bat speed, pair zyada nahi hilaye. LSG teen wicket pe girne ke baad platform bana raha hai. LSG 84 teen wicket pe (9.6).",
        score:"LSG 84/3 (9.6)"},
       {over:"11.4",type:"FIFTY",text:"Abdul Samad — lofts Kuldeep over long-on for SIX! Aggressive fifty stand! 36 needed off 50!",
        dramatic:"SAMAD NE LAGA DI! LSG alag direction mein aa raha hai — Samad ke saath umeed hai!",
        funny:"Samad SIX maar raha hai aur team collapse ho rahi hai! Yeh leadership hai ya denial — ya dono? Philosophy ka sawaal hai yaar!",
-       analytical:"Samad reaches his 36 off 25 — LSG top scorer by some distance. Aggressive batting keeping the total respectable.",
+       analytical:"Samad 36 off 25 — LSG ka top scorer ab tak. Aggressive batting se total thoda izzatdaar ban raha hai. Akele lad raha hai yeh.",
        score:"LSG 98/5 (11.4)"},
       {over:"13.2",type:"FOUR",text:"Mitchell Marsh — pulls Chameera short ball, flat to deep square leg! FOUR! Marsh taking on the pace bowlers!",
        dramatic:"MARSH NE HAAR DIYA! Chameera ki bouncer pe pull shot — deep square leg boundary! Doosri duniya mein khel raha hai yaar!",
        funny:"Chameera ne bouncer daali, Marsh ne uthha diya — 'Australia se aaya hoon yaar, bouncer toh snack hai mere liye!' FOUR!",
-       analytical:"Marsh pulls Chameera's short ball to deep square leg — flat and powerful. Australian technique against short-pitched bowling. LSG 112/5 (13.2). Marsh key now.",
+       analytical:"Marsh ne Chameera ki short ball deep square leg mein pull ki — flat aur tez. Short pitch ke against Australian technique saaf dikh rahi hai. LSG 112 paanch wicket pe (13.2). Marsh zaruri hai ab.",
        score:"LSG 112/5 (13.2)"},
       {over:"15.3",type:"FOUR",text:"Mitchell Marsh — drives Axar Patel through mid-off! Long stride forward, FOUR! LSG pushing for a fighting total!",
        dramatic:"MARSH KI DRIVE! Axar ko seedha bheja! Mid-off ne dekha bas — kuch kar nahi saka! LSG 130 ke taraf!",
        funny:"Marsh ne Axar ko drive maar di — Axar ne follow-through kiya aur boundary dekhi! 'Kuch nahi ho sakta tha bhai' expression!",
-       analytical:"Marsh drives Axar's full delivery through mid-off — excellent footwork, long stride. LSG 127/6 (15.3). Batting below potential but making the best of a tough situation.",
+       analytical:"Marsh ne Axar ki full delivery mid-off mein drive ki — achhi footwork, lamba qadam. LSG 127 chhe wicket pe (15.3). Situation mushkil hai par Marsh apna best de raha hai.",
        score:"LSG 127/6 (15.3)"},
       {over:"18.4",type:"WICKET",text:"Mitchell Starc to Mitchell Marsh — fast and full, hits the top of off stump! ALL OUT for 141!",
        dramatic:"LAST WICKET! Starc ne khel khatam kiya! LSG 141 all out! DC ko 142 chahiye — yeh toh easy hai!",
        funny:"LSG all out for 141. Mitchell Starc is smiling. Two fast bowlers named Mitchell, one straightened target.",
-       analytical:"Starc yorker ends LSG innings at 141. Ngidi 3/27, Starc 2/30 the key bowlers. DC need 142 off 20 overs.",
+       analytical:"Starc ka yorker — LSG innings 141 pe khatam. Ngidi 3/27, Starc 2/30 — dono key the. DC ko 142 chahiye 20 overs mein. Achi position mein hain.",
        score:"LSG 141 ao (18.4)"},
       {over:"2.4",type:"FOUR",text:"KL Rahul — flicks Avesh Khan off the pads to fine leg! FOUR! Rahul timing the ball sweetly!",
        dramatic:"KL RAHUL! Flick shot fine leg pe — apni hi stadium mein aakar khelna kuch alag hi feel deta hai! FOUR!",
        funny:"KL Rahul Lucknow mein DC ke liye khel raha hai! Flick shot FOUR! Ekana crowd: confused lekin appreciate kar raha hai!",
-       analytical:"Rahul flicks Avesh Khan's full inswinger off the pads to fine leg — good wrist rotation. Classic Rahul shot selection. DC 22/0 (2.4).",
+       analytical:"Rahul ne Avesh ki full inswinger pads se fine leg mein flick ki — achi wrist rotation. Classic Rahul shot. DC 22 bina wicket (2.4).",
        score:"DC 22/0 (2.4)"},
       {over:"4.1",type:"FOUR",text:"Ben Duckett — cuts Mohsin Khan hard through backward point! FOUR! Duckett and Rahul in full flow!",
        dramatic:"DUCKETT NE MAAR DIYA! Cut shot backward point pe — London se Lucknow, yeh Angrez chal raha hai! FOUR!",
        funny:"Duckett ne Mohsin ko cut kiya — backward point fielder ne haath lagaya aur ball fence ke paar! Koshish appreciated, result nahi!",
-       analytical:"Duckett cuts Mohsin's short delivery through backward point — good footwork, bottom hand drive. DC powerplay looking very settled. DC 40/0 (4.1).",
+       analytical:"Duckett ne Mohsin ki short ball backward point mein cut ki — achhi footwork, bottom hand. DC ka powerplay settled lag raha hai. DC 40 bina wicket (4.1).",
        score:"DC 40/0 (4.1)"},
       {over:"5.3",type:"FOUR",text:"KL Rahul — drives Avesh Khan through covers! Beautiful timing. DC 48/0 after powerplay!",
        dramatic:"KL RAHUL! Cover drive for four — Ekana mein unki hi stadium mein unhe hi check karo! Irony!",
@@ -940,32 +953,32 @@ const matchDetails = {
       {over:"11.2",type:"WICKET",text:"Digvesh Rathi to Axar Patel — caught at long-on! OUT for 0! DC collapse to 26/4!",
        dramatic:"AXAR OUT! Digvesh ne pehli ball pe OUT kar diya! DC 26/4 — yaar yeh kya ho gaya!",
        funny:"Axar Patel captain hain — aur DUCK! Dugout mein baithke zaroor sochenge aaj ki baat. Captains bhi hain, insaan bhi hain yaar!",
-       analytical:"Digvesh's slow left-arm traps Axar for a duck — DC in real trouble at 26/4. 116 needed off 53 balls with Stubbs and Rizvi to come.",
+       analytical:"Digvesh ki slow left arm ne Axar ko duck pe phansaya. DC 26 chaar wicket pe — bada aazma hai. 53 balls mein 116 chahiye. Stubbs aur Rizvi aa rahe hain ab.",
        score:"DC 26/4 (11.2)"},
       {over:"12.3",type:"FOUR",text:"Sameer Rizvi — slaps Avesh Khan hard through point! FOUR! DC's rescue act gaining momentum!",
        dramatic:"RIZVI NE MAAR DIYA! Point mein slap — impact player se impact aa raha hai! DC zinda hai abhi bhi!",
        funny:"Rizvi impact player ke taur pe aaya, pehla over mein hi point mein FOUR! Impact toh aaya bhai — naam bhi hai koi!",
-       analytical:"Rizvi slaps Avesh's short delivery through point — hard hands, flat stroke. DC 26/4 to 56/4. Rizvi-Stubbs partnership starting to take shape. DC 56/4 (12.3).",
+       analytical:"Rizvi ne Avesh ki short ball point mein slap ki — haath mazboot, flat stroke. DC 26 se 56 chaar wicket pe. Rizvi-Stubbs saajhedari banni ja rahi hai. DC 56 chaar wicket pe (12.3).",
        score:"DC 56/4 (12.3)"},
       {over:"13.5",type:"SIX",text:"Sameer Rizvi — reverse sweeps Digvesh over backward point! SIX! Partnership of 50 — DC fight back!",
        dramatic:"RIZVI NE MAAR DIYA! Reverse sweep for SIX! Digvesh ko toh samajh hi nahi aaya! DC wapas aa gaye!",
        funny:"Rizvi impact player ke taur pe aaya aur pehle hi shot pe reverse sweep SIX! Bhai, brief padha tha clearly — aur execute bhi kar diya!",
-       analytical:"Rizvi's reverse sweep off Digvesh for six. DC 26/4 to 76/4 — partnership taking shape. The chase is back on.",
+       analytical:"Rizvi ka Digvesh ke against reverse sweep six. DC 26 se 76 chaar wicket pe — saajhedari ban rahi hai. Chase wapas track pe.",
        score:"DC 76/4 (13.5)"},
       {over:"14.4",type:"FOUR",text:"Sameer Rizvi — lofts Shahbaz Ahmed over mid-on! Timed beautifully, races to the fence! FOUR! DC in control!",
        dramatic:"RIZVI NE MAAR DIYA! Lofted FOUR over mid-on — Shahbaz ke bowl ka jawaab boundary se! DC ka chase track pe!",
        funny:"Rizvi ne Shahbaz ki ball ko 'mid-on ke upar ki hawa mein' bhej diya! FOUR! DC 26/4 se jo shuru hua, yeh kya ho gaya yaar!",
-       analytical:"Rizvi lofts Shahbaz's full delivery over mid-on — good footwork forward, drives with elevation. DC 104/4 (14.4). Rizvi 55+ now, Stubbs supporting well.",
+       analytical:"Rizvi ne Shahbaz ki full delivery mid-on ke upar lofted drive ki — aage kadam, elevation achi. DC 104 chaar wicket pe (14.4). Rizvi 55 se upar, Stubbs sath dein raha hai.",
        score:"DC 104/4 (14.4)"},
       {over:"15.6",type:"FOUR",text:"Tristan Stubbs — cuts Avesh Khan hard through backward point! FOUR! Stubbs contribution growing!",
        dramatic:"STUBBS NE MAAR DIYA! Cut shot backward point pe — Rizvi ke saath yeh hazaarwali partnership karna chahte hain!",
        funny:"Stubbs ne Avesh ko cut kiya — Avesh ne dekha ball jaate hue, fielder ne bhi dekha! Sabne dekha, kisi ne rokha nahi! FOUR!",
-       analytical:"Stubbs cuts Avesh's short delivery through backward point — good ball striking. DC 122/4 (15.6). Stubbs now 28+, Rizvi 60+. 20 needed from 25 balls. Very much in control.",
+       analytical:"Stubbs ne Avesh ki short ball backward point mein cut ki — zabardast ball striking. DC 122 chaar wicket pe (15.6). Stubbs 28+, Rizvi 60+. 25 balls mein 20 chahiye. Control mein hain.",
        score:"DC 122/4 (15.6)"},
       {over:"17.1",type:"FOUR",text:"Tristan Stubbs — flicks Avesh to mid-wicket! BOUNDARY! DC WIN by 6 wickets! 17 balls remaining!",
        dramatic:"JEET GAYI DC! STUBBS NE THOKA! 119 runs ka partnership — Rizvi aur Stubbs ne khareed liya match!",
        funny:"DC were 26/4 and won by 6 wickets. Somewhere, a cricket pundit is eating crow. It's gourmet crow at least.",
-       analytical:"Stubbs clips the winning boundary. Rizvi 70* (47) and Stubbs 39* (32) — unbeaten 119-run 5th-wicket stand, second-highest in IPL history for this position.",
+       analytical:"Stubbs ne jeetu boundary maar di. Rizvi 70* (47) aur Stubbs 39* (32) — bina aout paanchwein wicket ki 119 run ki saajhedari. IPL mein is position ki doosri sabse badi. Kamal comeback.",
        score:"DC 145/4 · MATCH WON!"}
     ],
     bat1:{
@@ -1032,52 +1045,52 @@ const matchDetails = {
       {over:"3.2",type:"FOUR",text:"Gill clips Arshdeep off the pads through mid-wicket — timed to perfection. GT 28/0.",
        dramatic:"Gill bhai ne pehle hi over se batting shuru ki — woh bhav hi alag hai!",
        funny:"Gill plays a flick shot. It goes to the boundary. Arshdeep looks at his hands like they belong to someone else.",
-       analytical:"Gill works a fuller delivery off his pads through mid-wicket. Classic timing, minimal footwork. GT running at a healthy 9 per over early.",
+       analytical:"Gill ne full delivery pads se mid-wicket mein kheli — classic timing, pair zyada nahi hilaye. GT ka rate 9 per over — achi shuruat.",
        score:"GT 28/0 (3.2)"},
       {over:"5.6",type:"SIX",text:"Jos Buttler — pulls Rabada over deep square leg! Flat, powerful. MAXIMUM!",
        dramatic:"Buttler ne maar diya! Rabada ka bouncer uthha ke stadium ke bahar! Crowd jhoom utha!",
        funny:"Rabada ka bouncer — Buttler ne socha yeh invitation hai! Ball wapas dhundh rahe hain abhi bhi! Bhai, kya shot tha!",
-       analytical:"Back of a length from Rabada. Buttler swivels and hammers it over deep square. That pull shot is among the cleanest in T20 cricket.",
+       analytical:"Rabada ki back of length — Buttler ne ghoomke deep square pe jakar thoka. Pull shot T20 cricket ke saaf shots mein se ek. Crowd khada ho gaya.",
        score:"GT 54/0 (5.6)"},
       {over:"8.4",type:"FIFTY",text:"Shubman Gill brings up his fifty off 37 balls! Drives through covers — fifty and counting!",
        dramatic:"FIFTY! Gill ne 50 laga di! Punjab aa ke dekha Shubhman — yeh toh GT ka captain hai!",
        funny:"Gill ke 50 ho gaye — usne sirf ek baar sir hila diya. Bass. Koi naach nahi, koi drama nahi. Dangerous insaan yaar!",
-       analytical:"Gill reaches his fifty off 37 deliveries, striking at 135. Three fours and two sixes. A solid, composed innings laying the platform.",
+       analytical:"Gill ki 37 balls mein fifty — SR 135. Teen chauke, do chhakke. Solid aur composed. Platform ban raha hai GT ke liye.",
        score:"GT 82/0 (8.4)"},
       {over:"11.1",type:"WICKET",text:"Kagiso Rabada to Gill — yorker! Clean bowled through the gate! GONE! 52 off 38!",
        dramatic:"OUT! Rabada ne Gill ko OUT kar diya! Yorker seedha stumps pe! In-SAAN hai Rabada!",
        funny:"Gill scored 52 and then met a Rabada yorker. The stumps are still airborne. Great innings, cruel end.",
-       analytical:"Rabada nails a perfect yorker to dismiss Gill for 52. GT lose their first wicket at 98. Buttler-Miller partnership now key.",
+       analytical:"Rabada ka perfect yorker — Gill 52 pe out. GT ka pehla wicket 98 pe. Ab Buttler-Miller ki saajhedari key rahegi.",
        score:"GT 98/1 (11.1)"},
       {over:"16.3",type:"WICKET",text:"Arshdeep to Buttler — caught at long-on! Buttler goes for 48. GT wobble at 138/4.",
        dramatic:"Buttler OUT! 48 banake gaye — GT ko zyaada chahiye tha! Last 4 overs mein pressure!",
        funny:"Buttler hit a six, then a four, then tried another six and was caught. You can't be perfect every time. Just most times.",
-       analytical:"Buttler dismissed for 48 trying to clear long-on. GT 138/4 with 3.3 overs left. They need to accelerate — now Miller and Sundar must deliver.",
+       analytical:"Buttler 48 pe out — long-on clear karne ki koshish mein. GT 138 chaar wicket pe, 3.3 overs baaki. Accelerate karna zaroori — Miller aur Sundar ko deliver karna hoga.",
        score:"GT 138/4 (16.3)"},
       {over:"4.2",type:"FOUR",text:"Prabhsimran Singh cuts Mohit hard through point — PBKS starts the chase positively!",
        dramatic:"Prabhsimran ne aaते hi boundary laga di! Chase shuru ho gayi josh ke saath!",
        funny:"Pehli boundary pe puri PBKS dugout khadi ho gayi! Yaar, yeh FOUR hai, six nahi — lekin itna josh! Pure team invested hai!",
-       analytical:"Prabhsimran cuts a short delivery hard through the point gap. PBKS strike rate up at 10+ early. Good platform being set.",
+       analytical:"Prabhsimran ne short delivery point gap mein hard cut ki. PBKS ka strike rate 10+ pehle se. Achha platform ban raha hai.",
        score:"PBKS 42/0 (4.2)"},
       {over:"12.3",type:"FIFTY",text:"Shreyas Iyer brings up a classy fifty — 55 off 42 balls! Whips it through mid-wicket for the milestone!",
        dramatic:"FIFTY! Iyer ne half-century maar di! Punjab aa ke dekh lo — yeh hai captain!",
        funny:"Iyer ne fifty ke baad upar ishara kiya! Aasman ne bhi sar jhuka diya — is innings ke liye reasonable response yaar!",
-       analytical:"Iyer reaches 50 off 42 deliveries with a signature whip through mid-wicket. PBKS now 122/3 needing 43 off 45. Iyer is in control.",
+       analytical:"Iyer ki 42 balls mein fifty — signature mid-wicket whip se. PBKS 122 teen wicket pe, 45 balls mein 43 chahiye. Iyer control mein hai.",
        score:"PBKS 122/3 (12.3)"},
       {over:"15.5",type:"SIX",text:"Marcus Stoinis over the pavilion! Six! 25 needed off 25 — Stoinis takes the attack to Rashid!",
        dramatic:"STOINIS NE MAARA! Rashid ko pavilion ke upar bhej diya! Ab toh fight hai!",
        funny:"Marcus Stoinis hit Rashid Khan for six. Rashid Khan took a deep breath. Stoinis is already planning the next one.",
-       analytical:"Stoinis gets down the pitch to Rashid and launches him over long-off. 25 needed off 25. The equation shifts in PBKS's favour.",
+       analytical:"Stoinis ne pitch pe aakar Rashid ko long-off ke upar uthha diya. 25 balls mein 25 chahiye — equation PBKS ke palle. Ek aur barabar.",
        score:"PBKS 140/4 (15.5)"},
       {over:"17.4",type:"WICKET",text:"Rashid strikes back! Stoinis caught at deep cover — OUT for 28! PBKS 153/5, 12 off 14!",
        dramatic:"WICKET! Rashid ne Stoinis ko OUT kar diya! PBKS par pressure — 12 aur chahiye!",
        funny:"Stoinis 28 pe out, Rashid ne sar hilaya, Stoinis ne wapas hilaya! Yeh rivalry philosophical ho rahi hai bhai — dono ek dusre ko samajhte hain!",
-       analytical:"Rashid gets his revenge — Stoinis goes for 28. PBKS 153/5 needing 12 off 14 balls. Nervous finish ahead.",
+       analytical:"Rashid ka jawab — Stoinis 28 pe out. PBKS 153 paanch wicket pe, 14 balls mein 12 chahiye. Nervy finish aane wali hai.",
        score:"PBKS 153/5 (17.4)"},
       {over:"19.1",type:"FOUR",text:"Wadhera — drives full and straight, splits the field, BOUNDARY! PBKS WIN by 3 wickets!",
        dramatic:"JEET GAYI PBKS! WADHERA NE MAARA! 3 wickets se jeet! Punjab ka jashn shuru!",
        funny:"Wadhera ne jeetu boundary maari — coaches maidan mein daaud aaye! GT ke players politely zameen ko ghoor rahe the. Kya scene yaar!",
-       analytical:"Nehal Wadhera drives through extra cover off the full delivery from Noor Ahmad to seal a nail-biting 3-wicket win. PBKS's bowling held GT to 162 and the batting scraped home.",
+       analytical:"Wadhera ne Noor Ahmad ki full delivery extra cover mein drive karke match jeeta — 3 wicket ki kaante ki jeet. PBKS ki bowling ne GT ko 162 pe roka, batting ne mushkil se paar kiya.",
        score:"PBKS 165/7 · MATCH WON!"}
     ],
     bat1:{
@@ -1137,12 +1150,12 @@ const matchDetails = {
       {over:"2.4",type:"SIX",text:"Sunil Narine — steps down, lofts over long-on! SIX! 22 off 13 already! KKR flying!",
        dramatic:"NARINE NE MAAR DIYA! Pehle do overs mein hi 22 runs! KKR ka rocket ship launch ho gaya!",
        funny:"Narine has 22 runs off 13 balls in the second over. The bowler just wants to go home.",
-       analytical:"Narine takes on the pace, comes down and lofts over the bowler. 22 off 13 balls for KKR's opener. The powerplay has begun in earnest.",
+       analytical:"Narine ne pace ko target kiya, pitch pe aakar lofted shot maara. 13 balls mein 22 — KKR opener ne powerplay shuru kar diya seriously.",
        score:"KKR 22/0 (2.4)"},
       {over:"6.5",type:"FIFTY",text:"Narine hammers one through covers — FIFTY off 32 balls! 5 sixes already in this innings!",
        dramatic:"FIFTY! NARINE KA FIFTY! 32 balls mein! Eden Gardens uthha ke rakh diya — goosebumps!",
        funny:"Narine's reached 50. The fielding team is setting up a crisis committee. This is going to be a very long evening.",
-       analytical:"Narine brings up his fifty off just 32 deliveries. Five sixes in his innings already. KKR 78/0 after 6 overs. A powerplay total that demands a record chase.",
+       analytical:"Narine ki 32 balls mein fifty — paanch chhakke ho chuke hain. KKR 78 bina wicket 6 overs mein. Itne bade powerplay score ke baad record chase ki zaroorat hogi.",
        score:"KKR 78/0 (6.5)"},
       {over:"9.3",type:"SIX",text:"Venkatesh Iyer — down the track, smashes Krunal over wide long-on! SIX! Partnership at 80!",
        dramatic:"VENKATESH NE UTHAA DIYA! 80 runs ki partnership — KKR train kaise rokoge?",
@@ -1152,12 +1165,12 @@ const matchDetails = {
       {over:"12.1",type:"WICKET",text:"Bumrah to Narine — nips one back, hits the top of off stump! GONE! 71 off 42! Massive wicket!",
        dramatic:"OUT! BUMRAH NE NARINE KO OUT KIYA! 71 off 42 — incredible knock! Ab MI ka plan kya hai?",
        funny:"Bumrah bowled Narine for 71. Narine looked back, nodded once, and walked off. Legend behaviour.",
-       analytical:"Bumrah finds the perfect line to dismiss Narine for 71. The first wicket falls at 138. KKR still well placed but have lost their catalyst.",
+       analytical:"Bumrah ne perfect line pe daala — Narine 71 pe out. Pehla wicket 138 pe. KKR theek position mein hai par catalyst kho diya.",
        score:"KKR 138/1 (12.1)"},
       {over:"18.3",type:"SIX",text:"Andre Russell — pulls it over fine leg! SIX! His 4th maximum of the innings! KKR 205/3!",
        dramatic:"RUSSELL! CHAAR SIXES! Yeh banda toh AVENGER hai! 220 bhi possible hai!",
        funny:"Russell hit his fourth six. The scoreboard person is crying happy tears.",
-       analytical:"Russell takes the attack on at number five. His four sixes in this cameo shift the final over target significantly. KKR heading for 220+.",
+       analytical:"Russell number 5 pe aa ke attack kiya. Chaar chhakkon ne final over ka target kaafi badha diya. KKR 220 se upar ja raha hai.",
        score:"KKR 205/3 (18.3)"},
       {over:"2.2",type:"SIX",text:"Rohit Sharma — backs away, smashes Varun Chakravarthy over extra cover! SIX! MI statement!",
        dramatic:"ROHIT NE MAAR DIYA! Pehle over mein hi Varun ko six! Mumbai ka jawaab aa gaya!",
@@ -1167,22 +1180,22 @@ const matchDetails = {
       {over:"8.4",type:"FOUR",text:"Tilak Varma — punched off the back foot through covers! Four! Pure class. MI building nicely.",
        dramatic:"Tilak ki timing — bilkul butter! Yeh ladka T20 ka future hai bhai!",
        funny:"Tilak ne back-foot punch maara, cover split kiya, muda bhi nahi! Bas crease ki taraf chala gaya. Ekdum thanda khoon yaar — kya confidence hai!",
-       analytical:"Tilak Varma uses the back-foot punch to perfection against the short-of-length ball. His technique is exceptional for T20 cricket. MI 112/2 in 9, run rate well inside required.",
+       analytical:"Tilak Varma ne back-foot punch bilkul sahi waqt pe kiya — short of length ke khilaf. T20 mein yeh technique kamal ki hai. MI 112 do wicket pe 9 overs mein, run rate kaafi comfortable.",
        score:"MI 112/2 (8.4)"},
       {over:"13.2",type:"FIFTY",text:"Tilak Varma reaches his fifty! 52 off 38 balls — whips it to the mid-wicket boundary!",
        dramatic:"FIFTY! TILAK NE FIFTY LAGA DI! 38 balls! Itni calm innings aur yeh pace — wah!",
        funny:"Tilak Varma raised his bat for his fifty. 78,000 people at Wankhede all waved back. He is the people's champion.",
-       analytical:"Varma's fifty comes off 38 balls, striking at 136. He has been the anchor while Rohit and Ishan played their roles. MI 150/2, clearly in control.",
+       analytical:"Varma ki fifty 38 balls mein, SR 136. Jab Rohit aur Ishan apna kaam kar rahe the, yeh anchor bana raha. MI 150 do wicket pe — clearly control mein.",
        score:"MI 150/2 (13.2)"},
       {over:"16.5",type:"SIX",text:"Hardik Pandya — MASSIVE six over long-on off Russell! 28 needed off 19 now! Game on!",
        dramatic:"PANDYA NE UTHAA DIYA! Russell ko bhi nahi choda! 28 off 19 — MI aa rahi hai!",
        funny:"Hardik hit Russell for six. Russell is personally offended. This just got interesting.",
-       analytical:"Pandya takes on Russell with a massive straight six to swing momentum. Russell and Pandya — two alpha allrounders in direct combat. MI need 28 off 19 now.",
+       analytical:"Pandya ne Russell ko straight SIX maar ke momentum apni taraf khecha. Russell aur Pandya — dono alpha allrounders aamnay-saamnay. MI ko 19 balls mein 28 chahiye.",
        score:"MI 196/3 (16.5)"},
       {over:"19.1",type:"FOUR",text:"Tilak Varma — drives full and straight off Spencer Johnson! FOUR! MI WIN by 6 wickets!",
        dramatic:"JEET GAYI MI! TILAK NE MAARA! 6 wickets se! 78* runs! Wankhede mein celebration!",
        funny:"Tilak ne jeetu boundary maari aur bas kandhey uchkaye! 78 run bana chuke — ab emotion se upar hain bhai. Ekdum cool cricketer!",
-       analytical:"Varma 78* off 52 pe not out — masterclass chase innings. MI 5 balls remaining se jeeti, title bid strong. KKR ka 220 aaj kaafi nahi tha.",
+       analytical:"Varma 78* off 52 pe not out — masterclass chase innings. MI ne 5 balls baaki rakhke jeeta. KKR ka 220 aaj kaafi nahi tha.",
        score:"MI 224/4 · MATCH WON!"}
     ],
     bat1:{
@@ -1237,32 +1250,32 @@ const matchDetails = {
       {over:"3.1",type:"FOUR",text:"Travis Head — drives Siraj through the covers off the front foot. Four! SRH flowing!",
        dramatic:"Head ne pehle hi over mein bol diya — mujhe rok ke dikhao! Cover drive — butter smooth!",
        funny:"Travis Head has played a cover drive. Everyone watching just leaned forward slightly. That's the effect.",
-       analytical:"Head ne Siraj ki full delivery cover gap mein drive ki. Good length ball ko on the up punish kiya. SRH early platform set kar raha hai.",
+       analytical:"Head ne Siraj ki full delivery cover gap mein drive ki. Achhi length ball ko on the up punish kiya. SRH shuruat mein platform set kar raha hai.",
        score:"SRH 30/0 (3.1)"},
       {over:"5.4",type:"SIX",text:"Abhishek Sharma — steps back, pulls Hazlewood over deep square! SIX! Powerplay carnage!",
        dramatic:"ABHISHEK NE UTHAA DIYA! Powerplay mein six! Bengaluru jal raha hai — SRH ki fire!",
        funny:"Abhishek Sharma pulled Hazlewood over deep square leg. Hazlewood looked at the trajectory and thought about life.",
-       analytical:"Abhishek Sharma rocks back on a short delivery from Hazlewood and dispatches it over deep square. SRH have taken full advantage of the powerplay restrictions.",
+       analytical:"Abhishek ne Hazlewood ki short delivery pe rock back karke deep square ke upar maar diya. SRH ne powerplay restrictions ka poora fayda uthaya.",
        score:"SRH 62/0 (5.4)"},
       {over:"9.2",type:"FIFTY",text:"Travis Head — flicks off the pads to deep mid-wicket! FIFTY off 34 balls! SRH 105/1!",
        dramatic:"FIFTY! HEAD NE FIFTY! 34 balls! Hyderabad ke liye yeh toh gold hai! SRH 100 paar!",
        funny:"Head's reached 50. He acknowledged the applause with a wave. Very gracious for someone who just destroyed RCB's bowling.",
-       analytical:"Head reaches his fifty off 34 deliveries, striking at 147. Three fours and two sixes so far. SRH well placed at 105/1 at the halfway mark.",
+       analytical:"Head ki 34 balls mein fifty, SR 147. Teen chauke, do chhakke. SRH 105 ek wicket pe halfway mark par — achhi position.",
        score:"SRH 105/1 (9.2)"},
       {over:"12.3",type:"WICKET",text:"Siraj to Abhishek — beaten outside off! Clips the top of off stump! OUT for 42! Key wicket!",
        dramatic:"WICKET! SIRAJ NE ABHISHEK KO BOWL KIYA! 42 banake gaye — RCB ki wapsi!",
        funny:"Siraj gets Abhishek for 42. Siraj screamed. The crowd screamed. Abhishek just looked at the pitch. The pitch said nothing.",
-       analytical:"Siraj angles one across Abhishek, gets slight movement away, and clips the top of off stump. Abhishek's 42 was crucial but Siraj's persistence wins out. SRH 135/2.",
+       analytical:"Siraj ne Abhishek ko bahar angle kiya, thodi movement mili, off stump top pe lagi. Abhishek ka 42 zaroori tha par Siraj ka sabr bhaari pada. SRH 135 do wicket pe.",
        score:"SRH 135/2 (12.3)"},
       {over:"14.5",type:"WICKET",text:"Hazlewood to Head — caught at long-off! Gone for 58! SRH lose the plot at 148/3!",
        dramatic:"HEAD OUT! Hazlewood ne uthaa diya! 58 off 38 — great innings! Ab SRH ka kaun?",
        funny:"Head hit one over cover and the long-off fielder took a good catch. Head looked at it as if considering whether to be annoyed. He wasn't. Respect.",
-       analytical:"Hazlewood dismisses Head for 58 — a crucial double-wicket spell. Head tried to go big over the off side and was caught at long-off. SRH now 148/3 with only 5.1 overs left.",
+       analytical:"Hazlewood ne Head ko 58 pe dismiss kiya — crucial double wicket spell. Head ne off side ke upar bada shot khaela aur long-off pe catch ho gaya. SRH 148 teen wicket pe, sirf 5.1 overs baaki.",
        score:"SRH 148/3 (14.5)"},
       {over:"2.3",type:"SIX",text:"Phil Salt — charges Bhuvneshwar, lofts over long-off! SIX! RCB powerplay intent!",
        dramatic:"SALT NE MAAR DIYA! Bhuvneshwar ko long-off ke upar! RCB ka jawaab aa gaya!",
        funny:"Phil Salt just launched Bhuvneshwar over long-off in the second over of a 176-run chase. The crowd has decided this is their match now.",
-       analytical:"Salt comes down the track to a full delivery from Bhuvneshwar and lofts it back over his head. RCB powerplay intent — they are not respecting the target.",
+       analytical:"Salt ne track pe aakar Bhuvneshwar ki full delivery upar se maar di. RCB ka powerplay attitude — target ko aakal se nahi, josh se le rahe hain.",
        score:"RCB 30/0 (2.3)"},
       {over:"7.1",type:"FOUR",text:"Virat Kohli — drives Shahbaz through extra cover! Four! The Master Class begins.",
        dramatic:"KOHLI! Extra cover drive — IPL mein yeh shot toh trademark hai bhai! Crowd khada ho gaya!",
@@ -1272,12 +1285,12 @@ const matchDetails = {
       {over:"11.4",type:"FIFTY",text:"Virat Kohli — punches through mid-off for TWO and raises his fifty! 50 off 38 balls!",
        dramatic:"KOHLI KI FIFTY! 38 BALLS! IPL 2026 ki pehli match mein Kohli ne toh keh diya — I AM BACK!",
        funny:"Kohli has scored 50 runs. He pumped his fist. 78,000 people pumped their fists back. Symbiosis.",
-       analytical:"Kohli brings up his fifty off 38 deliveries. The timing is impeccable — he is playing T20 at ODI efficiency, building toward a match-winning innings.",
+       analytical:"Kohli ki 38 balls mein fifty. Timing lajawab — T20 mein ODI style se khelna, match-winning innings ki taraf badh rahe hain.",
        score:"RCB 122/2 (11.4)"},
       {over:"18.3",type:"FOUR",text:"Rajat Patidar — drives Cummins straight! FOUR! RCB WIN by 6 wickets! IPL 2026 opens with a bang!",
        dramatic:"JEET GAYI RCB! PATIDAR NE MAAR KE SEEMA PAAR KI! 6 wickets se! Chinnaswamy ROAR!",
        funny:"Patidar hit the winning boundary. Kohli ran to him. 78,000 people sprinted spiritually. RCB have won the first match of IPL 2026 and nobody is calm.",
-       analytical:"Patidar drives Cummins through the gap at extra cover to seal a commanding 6-wicket win for RCB with 9 balls remaining. Kohli's 72* anchored the chase brilliantly.",
+       analytical:"Patidar ne Cummins ko extra cover mein drive karke RCB ki 6 wicket ki jeet pakki ki — 9 balls baaki the. Kohli ka 72* bilkul sahi anchor innings tha.",
        score:"RCB 179/4 · MATCH WON!"}
     ],
     bat1:{
@@ -2077,7 +2090,7 @@ function startComm(style, btnEl){
 
   detPlaying=true; detPlayIdx=0;
   // Show pause button, loading state on active btn
-  const pb=document.getElementById("ssBtnPause"); if(pb) pb.style.display="flex";
+  const pr=document.getElementById("ssPauseRow"); if(pr) pr.style.display="block";
   if(btnEl) btnEl.classList.add("loading");
   document.getElementById("ssCommStatus").textContent="▶";
   // Switch to BBB tab and render
@@ -2224,8 +2237,8 @@ function stopDetailPlay(){
   // Remove loading state but keep active highlight so user sees what style was selected
   document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("loading"));
   document.getElementById("ssCommStatus").textContent="";
-  const pb=document.getElementById("ssBtnPause");
-  if(pb) pb.style.display="none";
+  const pr2=document.getElementById("ssPauseRow");
+  if(pr2) pr2.style.display="none";
   document.querySelectorAll(".bbb-item").forEach(el=>el.classList.remove("playing","done"));
 }
 
@@ -2427,14 +2440,14 @@ async function _autoFetchMatchDetails(label, apiId){
             text:`${name} scores a magnificent CENTURY — ${runs} off ${balls} balls! ${fours}x4, ${sixes}x6. SR ${sr}.`,
             dramatic:`CENTURY! ${last} ne SAINKAD laga di! ${runs} runs off ${balls} balls — ${fours} chauke, ${sixes} chhakke! SR ${sr}. Yeh toh legend performance hai yaar! Team ke liye kitna bada knock!`,
             funny:`${last} ne CENTURY maar di! ${runs} off ${balls}. ${sixes} sixes ke baad bhi nahi ruka — bhai, bowlers toh resign kar lete hain aajkal!`,
-            analytical:`${name} reaches century — ${runs} off ${balls}, SR ${sr}. ${fours} boundaries, ${sixes} maximums. ${dis?'Dismissed: '+dis+'. But innings already done great damage.':'Still at crease.'} Match-defining knock.`,
+            analytical:`${name} ne CENTURY jad di — ${runs} off ${balls}, SR ${sr}. ${fours} chauke, ${sixes} chhakke. ${dis?'Out hue '+runs+' pe — par innings ne team ko strong position mein rakha.':'Abhi bhi crease pe hain.'} Match-defining knock.`,
             score:`${batObj.team} ${runs}(${balls})`});
         } else if(runs>=50){
           built.bbb.push({over:innLabel,type:"FIFTY",
             text:`${name} brings up a fine fifty — ${runs} off ${balls} balls, ${fours}x4, ${sixes}x6.`,
             dramatic:`FIFTY! ${last} ne half-century maar di! ${runs} off ${balls} — kya innings chal raha hai! ${fours} chauke, ${sixes} chhakke. SR ${sr}. Team ko zaroorat thi, ${last} ne deliver kiya!`,
             funny:`${last} ne fifty laga di! ${runs} off ${balls} balls. ${sixes} SIX bhi maare — bhai, ek kaam kar raha hai aaj toh! Kya concentration hai!`,
-            analytical:`${name} fifty — ${runs} off ${balls}, SR ${sr}. ${fours}x4, ${sixes}x6. ${dis?'Dismissed for '+runs+' but knock was impactful.':'Continues at crease.'} Batting at healthy strike rate.`,
+            analytical:`${name} ne fifty maari — ${runs} off ${balls}, SR ${sr}. ${fours} chauke, ${sixes} chhakke. ${dis?runs+' pe out hue — par knock impactful tha.':'Crease pe hain.'} Achha strike rate pe batting.`,
             score:`${batObj.team} ${runs}(${balls})`});
         }
         // Add FOUR event for batsmen with 2+ fours (pick best boundary)
@@ -2444,7 +2457,7 @@ async function _autoFetchMatchDetails(label, apiId){
             text:`${name} hits a beautiful ${shot} for FOUR! ${fours} fours in this knock of ${runs} off ${balls}.`,
             dramatic:`CHAAR! ${last} ne ${shot} maar diya — kya timing hai! ${fours} fours is innings mein. ${batObj.team} running!`,
             funny:`${last} ne ${shot} maar di — fielder ne dekhte raha! ${fours} chauke ho gaye is innings mein. Kya class hai yaar!`,
-            analytical:`${name} plays the ${shot} — one of ${fours} boundaries in this ${runs}-run knock. SR ${sr}. Excellent stroke selection against the bowling.`,
+            analytical:`${name} ne ${shot} maar diya — is ${runs} run ki knock mein ${fours} chaukon mein se ek. SR ${sr}. Bowling ke khilaf sahi shot chunaav.`,
             score:`${batObj.team} ${runs}(${balls})`});
         }
         // Add SIX event for 1-2 sixes
@@ -2454,7 +2467,7 @@ async function _autoFetchMatchDetails(label, apiId){
             text:`${name} launches one for SIX! ${sixDir}! ${sixes} six${sixes>1?'es':''} in this knock of ${runs} off ${balls}.`,
             dramatic:`CHHA! ${last} ne maar diya — ${sixDir}! ${sixes} maximum${sixes>1?'s':''} in this innings. Crowd jhoom utha!`,
             funny:`${last} ne SIX maar diya — ${sixDir}! Ball wapas aa rahi hai abhi bhi! ${sixes} chhakke this innings. Kamaal ho gaya!`,
-            analytical:`${name} hits a maximum — ${sixDir}. ${sixes} six${sixes>1?'es':''} in this knock. ${runs} off ${balls} at SR ${sr}. Impactful batting.`,
+            analytical:`${name} ne SIX maar diya — ${sixDir}. Is knock mein ${sixes} chhakke. ${runs} off ${balls}, SR ${sr}. Impactful batting.`,
             score:`${batObj.team} ${runs}(${balls})`});
         }
         // 3+ sixes already covered above for 50+, but handle for <50 run scorers
@@ -2463,7 +2476,7 @@ async function _autoFetchMatchDetails(label, apiId){
             text:`${name} smashes ${sixes} sixes in this knock — ${runs} off ${balls}, pure power!`,
             dramatic:`${sixes} SIXES! ${last} ne bowlers ko stadium ke bahar bhej diya! ${runs} off ${balls}, SR ${sr}. Kya power hai bhai! Crowd on its feet!`,
             funny:`${last} ne ${sixes} SIX maare — ${runs} runs mein hi! SR ${sr}. Bhai, boundaries ka kya — directly stands mein bhejta hai yeh!`,
-            analytical:`${name} — ${sixes} sixes in ${runs} off ${balls}. SR ${sr}. Aggressive hitter, changes match tempo quickly. High-risk, high-reward batting.`,
+            analytical:`${name} — ${runs} off ${balls} mein ${sixes} chhakke. SR ${sr}. Aggressive batter — match ka tempo jaldi badal deta hai. Jokhim zyada, par reward bhi zyada.`,
             score:`${batObj.team} ${runs}(${balls})`});
         }
       });
@@ -2474,7 +2487,7 @@ async function _autoFetchMatchDetails(label, apiId){
           text:`${bwName} — ${bw.w}/${bw.r} off ${bw.o} overs. Match-changing spell!`,
           dramatic:`${bwLast} ne ${bw.w} wicket liye — ${bw.w}/${bw.r} in ${bw.o} overs! Kya spell hai yaar! ${batObj.team} ke liye bada jhatka!`,
           funny:`${bwLast} ${bw.w} wicket leke muskuraa raha hai! ${bw.w}/${bw.r} — bhai, yeh toh ek hi over mein game palat deta hai!`,
-          analytical:`${bwName} — ${bw.w}/${bw.r} off ${bw.o} overs, economy ${bw.eco||'-'}. Consistent pressure, took crucial wickets at key moments.`,
+          analytical:`${bwName} — ${bw.w} wicket, ${bw.r} run diye, ${bw.o} overs mein. Economy ${bw.eco||'-'}. Lagaataar pressure, sahi waqt pe zaroori wicket liye.`,
           score:`${batObj.team} ${bw.w}/${bw.r} (${bw.o})`});
       });
     });
@@ -2505,17 +2518,17 @@ async function _autoFetchMatchDetails(label, apiId){
               text=`${batter} — OUT! Caught/bowled by ${bowler}. ${ball.howOut||ball.dismissal||""}`;
               dramatic=`WICKET! ${last} OUT! ${bowler} ne nikaala! Stadium jhoom utha! Match ka khaas moment!`;
               funny=`${last} ne ${bowler} ko ek mauka diya — aur woh mauka gaya nahi! OUT! Dressing room ki taraf!`;
-              analytical=`${batter} dismissed off ${bowler}. ${ball.howOut||ball.dismissal||''}. Over ${ov}. Team score ${scoreStr}.`;
+              analytical=`${batter} out — ${bowler} ne liya. ${ball.howOut||ball.dismissal||''}. Over ${ov}. Team score ${scoreStr}.`;
             } else if(evType==="SIX"){
               text=`${batter} — launches ${bowler} for SIX! Maximum! Over ${ov}.`;
               dramatic=`CHHA! ${last} ne ${bowler} ko stadium ke bahar bhej diya! Kya shot tha — crowd standing!`;
               funny=`${last} ne ${bowler} ki ball ko 'address change' karwa di! SIX! Ball abhi bhi ja rahi hai!`;
-              analytical=`${batter} hits a six off ${bowler}. Over ${ov}. Team at ${scoreStr}. Momentum shift.`;
+              analytical=`${batter} ne ${bowler} ko SIX maar diya. Over ${ov}. Team ${scoreStr} pe. Momentum shift.`;
             } else if(evType==="FOUR"){
               text=`${batter} — drives/cuts ${bowler} for FOUR! Over ${ov}.`;
               dramatic=`CHAAR! ${last} ne ${bowler} ko boundary pe bheja! Excellent timing — kya shot!`;
               funny=`${last} ne ${bowler} ko FOUR maar di! Fielder ne boundary ki taraf dauda aur... nahi pahuncha!`;
-              analytical=`${batter} hits a boundary off ${bowler}. Over ${ov}. Team at ${scoreStr}. Good ball-striking.`;
+              analytical=`${batter} ne ${bowler} ki ball pe FOUR maari. Over ${ov}. Team ${scoreStr} pe. Achha shot.`;
             }
             realEvents.push({over:String(ov),type:evType,text,dramatic,funny,analytical,score:scoreStr||label});
           });
@@ -2596,12 +2609,12 @@ function _teamFlag(name){
   return "🏏";
 }
 
-async function fetchLiveScores(){
-  try{
-    const r=await fetch(_cricketURL("currentMatches",{offset:0}));
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    const data=await r.json();
-    if(data.status!=="success"||!Array.isArray(data.data)) return;
+// ── CRICAPI SCORES — internal helper (used as fallback) ──
+async function _fetchCricapiScores(){
+  const r=await fetch(_cricketURL("currentMatches",{offset:0}));
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const data=await r.json();
+  if(data.status!=="success"||!Array.isArray(data.data)) return;
 
     const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
     let changed=false;
@@ -2685,13 +2698,92 @@ async function fetchLiveScores(){
     });
 
     if(changed) renderMatches(currentTab);
-  }catch(e){
-    console.warn("Score fetch failed, using cached data:",e);
-  }
 }
 
-// ── ESPN CRICINFO LIVE ENRICHMENT ──
-// Runs after CricAPI live scores to add richer match data (requires APIFY_KEY in Worker)
+// ── MASTER LIVE SCORE FETCHER — ESPN first, CricAPI fallback ──
+async function fetchLiveScores(){
+  let espnHandled=false;
+  // 1. Try ESPN Cricinfo via Apify (richer data — venue, detailed scores, match status)
+  try{
+    const espnItems=await _fetchEspnLiveScores();
+    if(espnItems&&espnItems.length>0){
+      _applyEspnToMatchData(espnItems);
+      espnHandled=true;
+      console.log("Live scores: ESPN Cricinfo ✓",espnItems.length,"matches");
+    }
+  }catch(e){ console.warn("ESPN live scores failed, trying CricAPI:",e.message); }
+
+  // 2. CricAPI fallback (or supplement) — always run to catch matches ESPN may miss
+  try{ await _fetchCricapiScores(); }
+  catch(e){ if(!espnHandled) console.warn("Score fetch failed:",e); }
+}
+
+// Apply ESPN data to matchData — updates scores, venue, status and adds new live matches
+function _applyEspnToMatchData(items){
+  const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
+  let changed=false;
+  const _ABBR_ESPN={
+    "Lucknow Super Giants":"LSG","Delhi Capitals":"DC","Gujarat Titans":"GT",
+    "Punjab Kings":"PBKS","Chennai Super Kings":"CSK","Rajasthan Royals":"RR",
+    "Mumbai Indians":"MI","Royal Challengers Bengaluru":"RCB","Royal Challengers Bangalore":"RCB",
+    "Kolkata Knight Riders":"KKR","Sunrisers Hyderabad":"SRH"
+  };
+  function _normE(n){ return _ABBR_ESPN[n]||n; }
+  function _matchE(a,b){
+    const na=_normE(a).toLowerCase(), nb=_normE(b).toLowerCase();
+    return na===nb||na.includes(nb)||nb.includes(na)||
+      a.toLowerCase().split(/\s+/).filter(w=>w.length>3).some(w=>b.toLowerCase().includes(w));
+  }
+  items.forEach(item=>{
+    if(!item) return;
+    // ESPN Cricinfo scraper returns various shapes — handle common ones
+    const t1n=item.team1||item.homeTeam?.name||item.teams?.[0]||"";
+    const t2n=item.team2||item.awayTeam?.name||item.teams?.[1]||"";
+    if(!t1n||!t2n) return;
+    const isLive=item.matchStarted&&!item.matchEnded||item.status?.toLowerCase().includes("live")||item.isLive;
+    const isDone=item.matchEnded||item.status?.toLowerCase().includes("won")||item.isCompleted;
+    const existing=all.find(e=>_matchE(t1n,e.team1.name)&&_matchE(t2n,e.team2.name));
+    if(existing){
+      existing._espnId=item.id||item.matchId||existing._espnId;
+      if(item.venue&&!existing.extra) existing.extra="📍 "+item.venue;
+      // Update scores — prefer ESPN if available
+      const s1=item.score1||item.homeTeam?.score||item.scores?.[0]||"";
+      const s2=item.score2||item.awayTeam?.score||item.scores?.[1]||"";
+      if(s1) existing.team1.score=String(s1).split("/")[0]||existing.team1.score;
+      if(s2) existing.team2.score=String(s2).split("/")[0]||existing.team2.score;
+      if(item.statusText||item.status){
+        const st=item.statusText||item.status;
+        if(isLive) existing.status=st;
+        else if(isDone&&!existing.status?.includes("hl-g")) existing.status="<span class=hl-g>"+st+"</span>";
+      }
+      if(isDone&&existing.badge!=="completed"){
+        existing.badge="completed";
+        matchData.live=matchData.live.filter(x=>x!==existing);
+        matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
+        if(!matchData.completed.includes(existing)) matchData.completed.unshift(existing);
+      } else if(isLive&&existing.badge!=="live"){
+        existing.badge="live";
+        matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
+        if(!matchData.live.includes(existing)) matchData.live.unshift(existing);
+      }
+      changed=true;
+    } else if(isLive){
+      // New live match from ESPN not in our list
+      matchData.live.push({
+        label:item.matchDesc||item.name||`${_normE(t1n)} vs ${_normE(t2n)}`,
+        badge:"live", apiId:item.id||item.matchId||null, _espnId:item.id,
+        team1:{flag:_teamFlag(t1n),name:_normE(t1n)||t1n,score:"",wkts:"",overs:""},
+        team2:{flag:_teamFlag(t2n),name:_normE(t2n)||t2n,score:"",wkts:"",overs:""},
+        status:item.statusText||item.status||"🔴 LIVE",
+        extra:item.venue?"📍 "+item.venue:"",result:"",listen:false
+      });
+      changed=true;
+    }
+  });
+  if(changed) renderMatches(currentTab);
+}
+
+// ── ESPN CRICINFO LIVE ENRICHMENT (legacy — kept for backward compat) ──
 async function fetchEspnLiveEnrichment(){
   try{
     const espnItems=await _fetchEspnLiveScores();
@@ -2727,11 +2819,9 @@ async function fetchEspnLiveEnrichment(){
   }
 }
 
-// Fetch on load, then every 30 seconds
+// Fetch on load, then every 45 seconds (ESPN calls are heavier than CricAPI)
 fetchLiveScores();
-setInterval(fetchLiveScores,30000);
-// ESPN enrichment — once on load (expensive call, don't poll frequently)
-setTimeout(fetchEspnLiveEnrichment, 3000);
+setInterval(fetchLiveScores,45000);
 
 </script>
 </body>
