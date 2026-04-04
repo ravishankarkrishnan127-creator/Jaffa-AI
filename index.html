@@ -2281,29 +2281,65 @@ function stopDetailPlay(){
 }
 
 // ── LIVE BALL-BY-BALL COMMENTARY ENGINE ──
-// Polls /match every 12s, detects score delta, generates Camb AI audio per delivery.
 let _liveState={
   active:false, apiId:null, style:"dramatic",
   pollTimer:null, lastRuns:-1, lastWkts:-1, lastOvers:-1,
-  entryCount:0, team1:"", team2:""
+  entryCount:0, ballCount:0, team1:"", team2:""
 };
+let _ambientNode=null; // continuous crowd buzz node
+
+// Continuous low-level stadium buzz — loops while match is live
+function _startAmbientCrowd(){
+  try{
+    if(!_audioCtx||_ambientNode) return;
+    if(_audioCtx.state==="suspended") _audioCtx.resume();
+    const ctx=_audioCtx;
+    const dur=3.0;
+    const bufSize=Math.ceil(ctx.sampleRate*dur);
+    const buf=ctx.createBuffer(2,bufSize,ctx.sampleRate);
+    for(let ch=0;ch<2;ch++){
+      const data=buf.getChannelData(ch);
+      let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+      for(let i=0;i<bufSize;i++){
+        const wh=Math.random()*2-1;
+        b0=0.99886*b0+wh*0.0555179; b1=0.99332*b1+wh*0.0750759;
+        b2=0.96900*b2+wh*0.1538520; b3=0.86650*b3+wh*0.3104856;
+        b4=0.55000*b4+wh*0.5329522; b5=-0.7616*b5-wh*0.0168980;
+        data[i]=(b0+b1+b2+b3+b4+b5+b6+wh*0.5362)/7;
+        b6=wh*0.115926;
+      }
+    }
+    const src=ctx.createBufferSource(); src.buffer=buf; src.loop=true;
+    const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=700; bp.Q.value=0.4;
+    const gain=ctx.createGain(); gain.gain.value=0.04; // very low — just background murmur
+    src.connect(bp); bp.connect(gain); gain.connect(ctx.destination);
+    src.start(); _ambientNode={src,gain};
+  }catch(e){}
+}
+function _stopAmbientCrowd(){
+  try{ if(_ambientNode){_ambientNode.src.stop();_ambientNode=null;} }catch(e){_ambientNode=null;}
+}
+// Layered crowd burst on top of ambient — type: "big","medium","small"
+function _burstCrowd(type){
+  _playCrowdNoise(type==="big"?"big":type==="medium"?"medium":"ambient");
+}
 
 function _startLiveCommentary(matchObj, style){
   _stopLiveCommentary();
   _liveState={
     active:true, apiId:matchObj.apiId, style:style||"dramatic",
     pollTimer:null, lastRuns:-1, lastWkts:-1, lastOvers:-1,
-    entryCount:0, team1:matchObj.team1.name, team2:matchObj.team2.name
+    entryCount:0, ballCount:0, team1:matchObj.team1.name, team2:matchObj.team2.name
   };
   document.getElementById("ssCommStatus").textContent="🔴";
   const btn=document.querySelector(".ss-style-btn.active");
   if(btn) btn.classList.add("loading");
-  // Switch to BBB tab and show live feed
   detTab="bbb";
   document.querySelectorAll(".det-tab").forEach((t,i)=>t.classList.toggle("active",i===0));
   document.getElementById("detBody").innerHTML=
     '<div id="liveFeed" style="display:flex;flex-direction:column;gap:10px;padding:12px"></div>'+
     '<div id="liveWaiting" style="padding:24px;text-align:center;color:#888;font-size:14px">🔴 Listening for next delivery…</div>';
+  _startAmbientCrowd();
   _pollLiveCommentary();
 }
 
@@ -2311,6 +2347,7 @@ function _stopLiveCommentary(){
   _liveState.active=false;
   if(_liveState.pollTimer){clearTimeout(_liveState.pollTimer);_liveState.pollTimer=null;}
   if(_currentAudio){try{_currentAudio.pause();}catch(e){}_currentAudio=null;}
+  _stopAmbientCrowd();
   document.getElementById("ssCommStatus").textContent="";
   document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("loading"));
 }
@@ -2319,9 +2356,9 @@ async function _pollLiveCommentary(){
   if(!_liveState.active) return;
   try{
     let runs=0, wkts=0, overs=0, striker="", bowler="", matchEnded=false;
+    let t1runs=null,t1wkts=null,t1overs=null,t2runs=null,t2wkts=null,t2overs=null;
 
     if(_liveState.apiId){
-      // ── CricAPI path (preferred — has batsman/bowler names) ──
       const r=await fetch(_cricketURL("match",{id:_liveState.apiId}));
       const json=await r.json();
       if(json.status!=="success"||!json.data) throw new Error("cricapi no data");
@@ -2333,26 +2370,40 @@ async function _pollLiveCommentary(){
               md.batsmanRuns?.[0]?.batName||md.batTeamDetails?.batsmenData?.[0]?.batName||"";
       bowler=md.bowler?.name||md.currentBowler?.name||md.bowlerRuns?.[0]?.bowlName||"";
       matchEnded=!!md.matchEnded;
+      if(scores[0]){t1runs=scores[0].r;t1wkts=scores[0].w;t1overs=scores[0].o;}
+      if(scores[1]){t2runs=scores[1].r;t2wkts=scores[1].w;t2overs=scores[1].o;}
     } else {
-      // ── ESPN/matchData fallback (no CricAPI ID — reads from in-memory matchData updated by ESPN) ──
       const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
       const m=all.find(x=>x.label===detKey);
       if(!m) throw new Error("match not found in matchData");
-      // Determine active innings: team with fewer overs is currently batting
       const o1=parseFloat(m.team1.overs)||0, o2=parseFloat(m.team2.overs)||0;
       const r1=parseInt(m.team1.score)||0, w1=parseInt(m.team1.wkts)||0;
       const r2=parseInt(m.team2.score)||0, w2=parseInt(m.team2.wkts)||0;
-      // Active innings = the one being updated (lower overs = still in progress, or first innings not done)
+      t1runs=r1;t1wkts=w1;t1overs=o1;t2runs=r2;t2wkts=w2;t2overs=o2;
       if(o1>0&&o2>0){
-        // Both innings have data — second innings is live (lower over count = still batting)
         if(o2<o1){runs=r2;wkts=w2;overs=o2;striker=m.team2.name;bowler=m.team1.name;}
         else{runs=r1;wkts=w1;overs=o1;striker=m.team1.name;bowler=m.team2.name;}
       } else if(o1>0){runs=r1;wkts=w1;overs=o1;striker=m.team1.name;}
       else{runs=r2;wkts=w2;overs=o2;striker=m.team2.name;}
       matchEnded=m.badge==="completed";
-      // If CricAPI ID has arrived since we started, grab it for future polls
       if(m.apiId) _liveState.apiId=m.apiId;
     }
+
+    // ── Update header scorecard in detail screen immediately ──
+    try{
+      const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
+      const m=all.find(x=>x.label===detKey);
+      if(m){
+        const s1el=document.getElementById("ss1Score"),s2el=document.getElementById("ss2Score");
+        const o1el=document.getElementById("ss1Overs"),o2el=document.getElementById("ss2Overs");
+        if(s1el&&m.team1.score){s1el.textContent=m.team1.score+(m.team1.wkts!==undefined&&m.team1.wkts!==''?" / "+m.team1.wkts:"");}
+        if(s2el&&m.team2.score){s2el.textContent=m.team2.score+(m.team2.wkts!==undefined&&m.team2.wkts!==''?" / "+m.team2.wkts:"");}
+        if(o1el&&m.team1.overs) o1el.textContent=m.team1.overs;
+        if(o2el&&m.team2.overs) o2el.textContent=m.team2.overs;
+      }
+      // If scorecard tab is open, re-render it live
+      if(detTab==="scorecard") renderDetBody();
+    }catch(e){}
 
     if(matchEnded){
       _stopLiveCommentary();
@@ -2363,30 +2414,52 @@ async function _pollLiveCommentary(){
     }
 
     if(_liveState.lastRuns<0){
-      // First poll — set baseline, no commentary yet
       _liveState.lastRuns=runs; _liveState.lastWkts=wkts; _liveState.lastOvers=overs;
     } else {
       const rd=runs-_liveState.lastRuns;
       const wd=wkts-_liveState.lastWkts;
       if(wd>0||rd>0){
+        _liveState.ballCount++;
         const ev=_buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler);
         if(ev){
           _liveState.lastRuns=runs; _liveState.lastWkts=wkts; _liveState.lastOvers=overs;
-          const cText=ev[_liveState.style]||ev.dramatic;
+
+          // Every 2 balls inject a score announcement into the commentary
+          let cText=ev[_liveState.style]||ev.dramatic;
+          if(_liveState.ballCount%2===0){
+            const battingTeam=striker&&striker.length<5?striker:_liveState.team1;
+            cText+=" — "+overs.toFixed(1)+" overs ke baad, "+battingTeam+" "+runs+" pe "+wkts+" wicket.";
+          }
+
+          // Crowd noise instantly — no waiting
+          const isBig=ev.type==="WICKET"||ev.type==="SIX";
+          const isMed=ev.type==="FOUR"||rd>=5;
+          _burstCrowd(isBig?"big":isMed?"medium":"small");
+
+          // Show text in BBB feed immediately
           _addLiveFeedEntry(ev.type,ev.text,cText);
+
+          // INSTANT audio via Web Speech (zero latency) — fires same frame as text
+          _speakNow(cText, ev.type);
+
+          // Simultaneously fetch high-quality TTS — when ready, upgrade audio
           const vi=(ev.type==="WICKET"||ev.type==="SIX")?1:(ev.type==="FOUR")?0:_liveState.entryCount%2;
           _liveState.entryCount++;
           const ck="live:"+ev.type+":"+runs+":"+wkts;
-          const liveCrowd=(ev.type==="WICKET"||ev.type==="SIX")?"big":(ev.type==="FOUR")?"medium":"ambient";
-          _playCrowdNoise(liveCrowd);
-          _fetchTTS(cText,vi).then(u=>{_ttsCache[ck]=u; _playAudio(u);}).catch(()=>{});
+          _fetchTTS(cText,vi).then(u=>{
+            if(u&&_ttsCache[ck]!==u){
+              _ttsCache[ck]=u;
+              // Only upgrade if Web Speech already done (don't cut it short mid-sentence)
+              if(!speechSynthesis.speaking) _playAudio(u);
+              else { speechSynthesis.cancel(); _playAudio(u); }
+            }
+          }).catch(()=>{});
         }
       }
     }
     const w=document.getElementById("liveWaiting");
     if(w) w.textContent="🔴 "+runs+"/"+wkts+" ("+(overs||0).toFixed(1)+" ov) · Listening for next delivery…";
   }catch(e){ console.warn("Live poll error:",e); }
-  // Poll every 12s with CricAPI; every 30s on ESPN fallback (matches ESPN refresh rate)
   if(_liveState.active) _liveState.pollTimer=setTimeout(_pollLiveCommentary, _liveState.apiId?12000:30000);
 }
 
@@ -2394,26 +2467,47 @@ function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
   const score=runs+"/"+wkts+" ("+overs.toFixed(1)+" ov)";
   const s=striker?striker.split(" ").pop():_liveState.team1;
   const b=bowler?bowler.split(" ").pop():"";
+  const bat=_liveState.team1, bowl=_liveState.team2;
+
+  // Milestone check — team crosses 50/100/150/200
+  const prev=_liveState.lastRuns;
+  const milestone=[50,100,150,200].find(m=>prev<m&&runs>=m);
+
   if(wd>0){
-    const wkt="WICKET! "+s+" OUT! "+(b?b+" ne kiya! ":"")+"Kya moment yaar! "+score;
-    return{type:"WICKET",
-      text:"OUT! "+(striker||"Wicket")+" falls! "+_liveState.team2+" strike! "+score,
-      dramatic:wkt, funny:wkt, analytical:wkt};
+    const dramatic="WICKET! WICKET! "+s+" ka wicket gir gaya! "+(b?b+" ne tod diya! ":"")+"Kya pal yaar! Stadium mein sannata! "+score;
+    const funny="Ohhh nooo! "+s+" chalte bane! "+(b?b+" ji mubarak ho! ":"")+"Ab agli team ko bhi yahi hoga! "+score;
+    const analytical="Wicket fell at "+score+". "+(b?"Bowler: "+b+". ":"")+"Key dismissal — "+bat+" ke liye pressure badhega.";
+    return{type:"WICKET", text:"WICKET! "+(striker||"Batter")+" dismissed! "+score,
+      dramatic, funny, analytical};
   } else if(rd>=6){
-    const six="CHHA! SIX! "+s+" ne maar diya! Stadium jhoom utha! "+score;
-    return{type:"SIX",
-      text:"SIX! MAXIMUM! "+(striker||_liveState.team1)+" launches it! "+score,
-      dramatic:six, funny:six, analytical:six};
+    const dramatic="CHHA! MAXIMUM! "+s+" ne zor se maar diya! Gayi ball, bahar! Stadium jhoom utha! "+score;
+    const funny="Bhai bhai bhai! "+s+" ne toh ball ko videsh bhej diya! "+score+" — kamaal hai!";
+    const analytical="SIX! "+rd+" runs off that delivery. "+bat+" building big — "+score;
+    return{type:"SIX", text:"SIX! MAXIMUM! "+score, dramatic, funny, analytical};
+  } else if(rd>=5){
+    const dramatic="PAANCH RUN! Wah! "+s+" ne acchi shot lagayi! "+score;
+    const funny="Paanch run! Nahi nahi chaar chahiye tha lekin paanch bhi chalega! "+score;
+    const analytical="5 runs off that — good running between wickets. "+score;
+    return{type:"FOUR", text:"5 runs! "+score, dramatic, funny, analytical};
   } else if(rd>=4){
-    const four="CHAAR! Boundary! "+s+" ne accha maar diya! "+score;
-    return{type:"FOUR",
-      text:"FOUR! Boundary! "+(striker?striker+" finds the gap! ":"")+score,
-      dramatic:four, funny:four, analytical:four};
-  } else if(rd>0){
-    const run=rd+" run"+(rd!==1?"s":"")+" liye gaye. "+score+" — dhire dhire sahi, aa raha hai!";
-    return{type:"NORMAL",
-      text:rd+" run"+(rd!==1?"s":"")+" off that delivery. "+score,
-      dramatic:run, funny:run, analytical:run};
+    const dramatic="CHAAR! BOUNDARY! "+s+" ne gap dhundh liya! Fielder kuch nahi kar saka! "+score;
+    const funny="Chaar! "+s+" ne aise maara jaise lunch break ke baad fresh energy aa gayi! "+score;
+    const analytical="FOUR! Clean boundary — well timed by "+(striker||bat)+". "+score;
+    return{type:"FOUR", text:"FOUR! Boundary! "+score, dramatic, funny, analytical};
+  } else if(milestone){
+    const dramatic=bat+" ne "+milestone+" ka milestone chhua! "+score+" — waah kya innings hai!";
+    const funny=bat+" "+milestone+" pe pahunch gaye! Cake kahan hai yaar? "+score;
+    const analytical=bat+" reach "+milestone+" runs. Good platform built. "+score;
+    return{type:"MILESTONE", text:bat+" reach "+milestone+"! "+score, dramatic, funny, analytical};
+  } else if(rd===3){
+    const t="TEEN RUN! "+s+" ne achi running ki. "+score+" — momentum banega!";
+    return{type:"NORMAL", text:"3 runs. "+score, dramatic:t, funny:t, analytical:t};
+  } else if(rd===2){
+    const t="DO RUN! "+s+" ne samajhdaari se khela. "+score;
+    return{type:"NORMAL", text:"2 runs. "+score, dramatic:t, funny:t, analytical:t};
+  } else if(rd===1){
+    const t="Ek run. "+s+" strike rotate kar raha hai. "+score;
+    return{type:"NORMAL", text:"1 run. "+score, dramatic:t, funny:t, analytical:t};
   }
   return null;
 }
