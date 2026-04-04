@@ -2284,7 +2284,8 @@ function stopDetailPlay(){
 let _liveState={
   active:false, apiId:null, style:"dramatic",
   pollTimer:null, lastRuns:-1, lastWkts:-1, lastOvers:-1,
-  entryCount:0, ballCount:0, team1:"", team2:""
+  entryCount:0, ballCount:0, team1:"", team2:"",
+  lastBallCount:0  // tracks how many match_bbb balls seen; 0 = not yet loaded
 };
 let _ambientNode=null;
 let _pollActive=false; // guard: prevent two concurrent polls
@@ -2341,6 +2342,7 @@ function _startLiveCommentary(matchObj, style){
     '<div id="liveFeed" style="display:flex;flex-direction:column;gap:10px;padding:12px"></div>'+
     '<div id="liveWaiting" style="padding:24px;text-align:center;color:#888;font-size:14px">🔴 Listening for next delivery…</div>';
   _startAmbientCrowd();
+  if(matchObj.apiId) _preloadLiveBBB(matchObj.apiId); // async — renders past deliveries immediately
   _pollLiveCommentary();
 }
 
@@ -2424,10 +2426,20 @@ async function _pollLiveCommentary(){
       const wd=wkts-_liveState.lastWkts;
       if(wd>0||rd>0){
         _liveState.ballCount++;
-        const ev=_buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler);
-        if(ev){
-          _liveState.lastRuns=runs; _liveState.lastWkts=wkts; _liveState.lastOvers=overs;
+        _liveState.lastRuns=runs; _liveState.lastWkts=wkts; _liveState.lastOvers=overs;
 
+        // Try to get real delivery data from match_bbb (accurate batter/bowler/shot type)
+        // Falls back to synthetic commentary if API unavailable
+        let ev=null;
+        if(_liveState.apiId){
+          try{
+            const realBall=await _getLatestBall(_liveState.apiId);
+            if(realBall) ev=_buildRealBallEvent(realBall,runs,wkts,overs);
+          }catch(e){}
+        }
+        if(!ev) ev=_buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler);
+
+        if(ev){
           // Every 2 balls inject a score announcement into the commentary
           let cText=ev[_liveState.style]||ev.dramatic;
           if(_liveState.ballCount%2===0){
@@ -2511,6 +2523,147 @@ function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
     return{type:"NORMAL", text:"1 run. "+score, dramatic:t, funny:t, analytical:t};
   }
   return null;
+}
+
+// ── GET LATEST REAL BALL from CricAPI match_bbb ─────────────────────────────
+// Returns the newest unseen ball, or null if unavailable / no new ball
+async function _getLatestBall(apiId){
+  const r=await fetch(_cricketURL("match_bbb",{id:apiId}));
+  if(!r.ok) return null;
+  const json=await r.json();
+  if(json.status!=="success"||!Array.isArray(json.data?.bbb)||!json.data.bbb.length) return null;
+  const balls=json.data.bbb;
+  // Detect new balls since last seen
+  const prev=_liveState.lastBallCount||0;
+  _liveState.lastBallCount=balls.length;
+  if(balls.length>prev){
+    // Return the most recent new ball
+    return balls[balls.length-1];
+  }
+  // No new ball index yet — return last ball anyway so commentary is real, not synthetic
+  return balls[balls.length-1];
+}
+
+// ── BUILD ACCURATE COMMENTARY from a real CricAPI match_bbb ball object ─────
+function _buildRealBallEvent(ball,runs,wkts,overs){
+  const r=parseInt(ball.r||0);
+  const rt=(ball.runType||ball.type||"").toUpperCase();
+  const isWicket=rt==="WICKET"||rt==="W"||rt==="OUT"||(ball.howOut&&ball.howOut!=="not out"&&ball.howOut!=="");
+  const isSix=!isWicket&&(rt==="SIX"||r>=6);
+  const isFour=!isWicket&&!isSix&&(rt==="FOUR"||r===4);
+  const score=runs+" for "+wkts+" ("+(overs||0).toFixed(1)+" ov)";
+  const batter=ball.batsmanName||ball.batsman||_liveState.team1||"Batter";
+  const bowler=ball.bowlerName||ball.bowler||_liveState.team2||"Bowler";
+  const last=batter.split(" ").pop();
+  const bLast=bowler.split(" ").pop();
+  const ov=ball.over||ball.overs||overs||"";
+  if(isWicket){
+    const how=ball.howOut||ball.dismissal||"dismissed";
+    return{type:"WICKET",
+      text:"Over "+ov+": "+batter+" OUT! "+how+" — "+bowler+". "+score,
+      dramatic:"WICKET! WICKET! "+last+" OUT! "+bLast+" ne tod diya! "+how+"! Stadium mein sannata! "+score,
+      funny:last+" chalte bane! "+bLast+" ji mubarak ho! Kya bowling! "+score,
+      analytical:batter+" out — "+how+", bowler "+bowler+". Over "+ov+". "+score+". Key dismissal."};
+  } else if(isSix){
+    return{type:"SIX",
+      text:"Over "+ov+": "+batter+" — SIX off "+bowler+"! Maximum! "+score,
+      dramatic:"CHHA! MAXIMUM! "+last+" ne "+bLast+" ko stadium ke bahar bhej diya! Kya shot tha — crowd standing! "+score,
+      funny:last+" ne "+bLast+" ki ball ko address change karwa di! SIX! Ball abhi bhi ja rahi hai! "+score,
+      analytical:"SIX off "+bowler+" by "+batter+". Over "+ov+". "+score+". Powerful hitting."};
+  } else if(isFour){
+    return{type:"FOUR",
+      text:"Over "+ov+": "+batter+" — FOUR off "+bowler+"! "+score,
+      dramatic:"CHAAR! "+last+" ne "+bLast+" ko boundary bheji! Kya timing — fielder kuch nahi kar saka! "+score,
+      funny:last+" ne "+bLast+" ko FOUR maara — fielder ko pata bhi nahi chala! "+score,
+      analytical:"FOUR off "+bowler+" by "+batter+". Over "+ov+". "+score+". Well timed."};
+  } else if(r===0){
+    return{type:"NORMAL",
+      text:"Over "+ov+": Dot ball — "+last+" off "+bLast+". "+score,
+      dramatic:"Dot ball! "+bLast+" ne roka "+last+" ko — koi run nahi. "+score,
+      funny:"Dot! "+last+" ne try kiya, "+bLast+" ne nahi diya! "+score,
+      analytical:"Dot ball. "+bowler+" bowling tight. "+score+"."};
+  } else {
+    const t=r===3?"TEEN RUN! "+last+" ne achi running ki! "+score:
+             r===2?"DO RUN! "+last+" ne samajhdaari se khela. "+score:
+             "Ek run. "+last+" strike rotate kar raha hai. "+score;
+    return{type:"NORMAL",text:"Over "+ov+": "+r+" run"+(r!==1?"s":"")+" — "+batter+" off "+bowler+". "+score,
+      dramatic:t,funny:t,analytical:r+" run off "+bowler+" by "+batter+". Over "+ov+". "+score+"."};
+  }
+}
+
+// ── PRELOAD LIVE BBB — fetches recent deliveries when user opens a live match ─
+// Solves "BBB empty on open" — shows last 20 actual deliveries immediately
+async function _preloadLiveBBB(apiId){
+  try{
+    const r=await fetch(_cricketURL("match_bbb",{id:apiId}));
+    if(!r.ok) return;
+    const json=await r.json();
+    if(json.status!=="success"||!Array.isArray(json.data?.bbb)||!json.data.bbb.length) return;
+    const balls=json.data.bbb;
+    _liveState.lastBallCount=balls.length;
+
+    // Set lastRuns/lastWkts/lastOvers from the most recent ball so we don't re-fire
+    const lb=balls[balls.length-1];
+    const curRuns=parseInt(lb.totalRuns||lb.innings_total||0);
+    const curWkts=parseInt(lb.totalWickets||0);
+    const curOvers=parseFloat(lb.over||lb.overs||0);
+    if(curRuns>0&&_liveState.lastRuns<0){
+      _liveState.lastRuns=curRuns; _liveState.lastWkts=curWkts; _liveState.lastOvers=curOvers;
+    }
+
+    const feed=document.getElementById("liveFeed");
+    if(!feed) return;
+
+    // Render last 20 balls as historical entries (muted style)
+    const recent=balls.slice(-20);
+    recent.forEach(ball=>{
+      const r=parseInt(ball.r||0);
+      const rt=(ball.runType||ball.type||"").toUpperCase();
+      const isWkt=rt==="WICKET"||rt==="W"||rt==="OUT"||(ball.howOut&&ball.howOut!=="not out"&&ball.howOut!=="");
+      const isSix=!isWkt&&(rt==="SIX"||r>=6);
+      const isFour=!isWkt&&!isSix&&(rt==="FOUR"||r===4);
+      const evType=isWkt?"WICKET":isSix?"SIX":isFour?"FOUR":"NORMAL";
+      const batter=ball.batsmanName||ball.batsman||"?";
+      const bowler=ball.bowlerName||ball.bowler||"?";
+      const last=batter.split(" ").pop();
+      const bLast=bowler.split(" ").pop();
+      const ov=ball.over||ball.overs||"?";
+      const runsTotal=ball.totalRuns||ball.innings_total||"";
+      const wktsTotal=ball.totalWickets||"";
+      const scoreStr=runsTotal?(runsTotal+" for "+wktsTotal):"";
+      let text="",commentary="";
+      if(isWkt){
+        text="Over "+ov+": "+batter+" OUT! "+(ball.howOut||"dismissed")+" — "+bowler+(scoreStr?" · "+scoreStr:"");
+        commentary="WICKET! "+last+" OUT — "+bLast+" ne liya! "+(ball.howOut||"")+" "+(scoreStr||"");
+      } else if(isSix){
+        text="Over "+ov+": "+batter+" hits "+bowler+" for SIX!"+(scoreStr?" · "+scoreStr:"");
+        commentary="CHHA! "+last+" ne "+bLast+" ko bahar bheja! "+(scoreStr||"");
+      } else if(isFour){
+        text="Over "+ov+": "+batter+" — FOUR off "+bowler+"."+(scoreStr?" · "+scoreStr:"");
+        commentary="CHAAR! "+last+" ne "+bLast+" ko boundary bheji! "+(scoreStr||"");
+      } else {
+        text="Over "+ov+": "+r+" run"+(r!==1?"s":"")+" — "+last+" off "+bLast+(scoreStr?" · "+scoreStr:"");
+        commentary=r===0?"Dot ball. "+bLast+" ne roka "+last+". "+(scoreStr||""):
+                   r===1?"Ek run. "+last+" strike rotate kar raha hai. "+(scoreStr||""):
+                   r===2?"Do run. "+last+" ne samajhdaari se khela. "+(scoreStr||""):
+                   "Teen run! "+last+" ki achi running. "+(scoreStr||"");
+      }
+      const div=document.createElement("div");
+      div.className="bbb-entry done";
+      div.style.cssText="opacity:0.65;border-left:3px solid #555;margin-left:4px";
+      div.innerHTML="<div class='bbb-meta'><span class='bbb-badge "+evType+"'>"+evType+"</span>"
+        +"<span style='opacity:0.6;font-size:11px;margin-left:6px'>Over "+ov+"</span></div>"
+        +"<div class='bbb-text'>"+text+"</div>"
+        +"<div class='bbb-jaffa' style='opacity:0.7'>🎙️ "+commentary+"</div>";
+      feed.appendChild(div);
+    });
+
+    // Update waiting text with current score
+    const w=document.getElementById("liveWaiting");
+    if(w&&curRuns>=0){
+      w.textContent="🔴 "+curRuns+" for "+curWkts+" ("+curOvers.toFixed(1)+" ov) · Listening for next delivery…";
+    }
+  }catch(e){ console.warn("_preloadLiveBBB error:",e); }
 }
 
 // Instant TTS via browser Web Speech API — zero latency, used for live commentary
