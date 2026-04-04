@@ -2603,12 +2603,15 @@ async function _fetchEspnCricinfo(action, params={}){
 }
 
 // ── LIVE SCORES via ESPN Cricinfo (richer data, needs APIFY_KEY in Worker) ──
-// Falls back to CricAPI if ESPN data unavailable
+// The actor returns [{action, success, data:[...matches]}] — extract data array
 async function _fetchEspnLiveScores(){
   try{
     const items=await _fetchEspnCricinfo("get_live_scores");
     if(!items||!items.length) return null;
-    return items;
+    // Actor wraps results: items[0].data is the actual match array
+    const matches=items[0]?.data||items;
+    if(!Array.isArray(matches)||!matches.length) return null;
+    return matches;
   }catch(e){
     console.warn("ESPN live scores failed:",e.message);
     return null;
@@ -2754,64 +2757,118 @@ async function fetchLiveScores(){
   }).catch(()=>{});
 }
 
-// Apply ESPN data to matchData — updates scores, venue, status and adds new live matches
+// Apply ESPN Cricinfo data to matchData.
+// Actual ESPN scraper shape per item:
+//   item.teams = [{team:{name,longName,abbreviation}, isLive, score, scoreInfo}, ...]
+//   item.status = "Live" | "RESULT" | "{{MATCH_START_TIME}}" | "unknown"
+//   item.venue.name, item.series.name, item.match_id
 function _applyEspnToMatchData(items){
   const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
   let changed=false;
-  const _ABBR_ESPN={
-    "Lucknow Super Giants":"LSG","Delhi Capitals":"DC","Gujarat Titans":"GT",
-    "Punjab Kings":"PBKS","Chennai Super Kings":"CSK","Rajasthan Royals":"RR",
-    "Mumbai Indians":"MI","Royal Challengers Bengaluru":"RCB","Royal Challengers Bangalore":"RCB",
-    "Kolkata Knight Riders":"KKR","Sunrisers Hyderabad":"SRH"
+
+  // Full name → abbreviation map
+  const _ABBR={
+    "Mumbai Indians":"MI","Delhi Capitals":"DC","Chennai Super Kings":"CSK",
+    "Kolkata Knight Riders":"KKR","Sunrisers Hyderabad":"SRH","Rajasthan Royals":"RR",
+    "Royal Challengers Bengaluru":"RCB","Royal Challengers Bangalore":"RCB",
+    "Punjab Kings":"PBKS","Lucknow Super Giants":"LSG","Gujarat Titans":"GT",
+    "Islamabad United":"IU","Lahore Qalandars":"LQ","Multan Sultans":"MS",
+    "Peshawar Zalmi":"PZ","Quetta Gladiators":"QG","Karachi Kings":"KK","Rawalpindiz":"RWP"
   };
-  function _normE(n){ return _ABBR_ESPN[n]||n; }
-  function _matchE(a,b){
-    const na=_normE(a).toLowerCase(), nb=_normE(b).toLowerCase();
-    return na===nb||na.includes(nb)||nb.includes(na)||
-      a.toLowerCase().split(/\s+/).filter(w=>w.length>3).some(w=>b.toLowerCase().includes(w));
+  function _abbr(n){ return _ABBR[n]||n; }
+
+  // Match two team name strings — checks abbreviation, long name, partial word
+  function _teamsMatch(espnName, ourName){
+    const a=_abbr(espnName).toLowerCase();
+    const b=ourName.toLowerCase();
+    if(a===b||a.includes(b)||b.includes(a)) return true;
+    // Also try ESPN longName abbreviation match
+    const abbrev=_abbr(espnName);
+    return abbrev.toLowerCase()===ourName.toLowerCase();
   }
+
   items.forEach(item=>{
-    if(!item) return;
-    // ESPN Cricinfo scraper returns various shapes — handle common ones
-    const t1n=item.team1||item.homeTeam?.name||item.teams?.[0]||"";
-    const t2n=item.team2||item.awayTeam?.name||item.teams?.[1]||"";
-    if(!t1n||!t2n) return;
-    const isLive=item.matchStarted&&!item.matchEnded||item.status?.toLowerCase().includes("live")||item.isLive;
-    const isDone=item.matchEnded||item.status?.toLowerCase().includes("won")||item.isCompleted;
-    const existing=all.find(e=>_matchE(t1n,e.team1.name)&&_matchE(t2n,e.team2.name));
+    if(!item||!item.teams||item.teams.length<2) return;
+    // Must have real team objects (filters out social links, series entries etc.)
+    const t0=item.teams[0]?.team, t1=item.teams[1]?.team;
+    if(!t0||!t1) return;
+
+    const t0name=t0.abbreviation||t0.name||"";  // e.g. "MI"
+    const t1name=t1.abbreviation||t1.name||"";  // e.g. "DC"
+    const t0long=t0.longName||t0.name||"";       // e.g. "Mumbai Indians"
+    const t1long=t1.longName||t1.name||"";
+
+    const isLive=item.status==="Live"||item.teams.some(t=>t.isLive);
+    const isDone=item.status==="RESULT";
+
+    // Find the score: whichever team has inningNumbers set is batting
+    const batting0=item.teams[0];
+    const batting1=item.teams[1];
+    const score0=batting0.score||"";  // e.g. "85/4"
+    const score1=batting1.score||"";
+    const overs0=batting0.scoreInfo||""; // e.g. "12/20 ov"
+    const overs1=batting1.scoreInfo||"";
+
+    const venue=item.venue?.name||"";
+    const espnId=item.match_id||"";
+
+    // Find matching entry in our matchData (try both team order permutations)
+    const existing=all.find(e=>
+      (_teamsMatch(t0long,e.team1.name)||_teamsMatch(t0name,e.team1.name)) &&
+      (_teamsMatch(t1long,e.team2.name)||_teamsMatch(t1name,e.team2.name))
+    ) || all.find(e=>
+      (_teamsMatch(t0long,e.team2.name)||_teamsMatch(t0name,e.team2.name)) &&
+      (_teamsMatch(t1long,e.team1.name)||_teamsMatch(t1name,e.team1.name))
+    );
+
     if(existing){
-      existing._espnId=item.id||item.matchId||existing._espnId;
-      if(item.venue&&!existing.extra) existing.extra="📍 "+item.venue;
-      // Update scores — prefer ESPN if available
-      const s1=item.score1||item.homeTeam?.score||item.scores?.[0]||"";
-      const s2=item.score2||item.awayTeam?.score||item.scores?.[1]||"";
-      if(s1) existing.team1.score=String(s1).split("/")[0]||existing.team1.score;
-      if(s2) existing.team2.score=String(s2).split("/")[0]||existing.team2.score;
-      if(item.statusText||item.status){
-        const st=item.statusText||item.status;
-        if(isLive) existing.status=st;
-        else if(isDone&&!existing.status?.includes("hl-g")) existing.status="<span class=hl-g>"+st+"</span>";
+      existing._espnId=espnId||existing._espnId;
+      if(venue&&!existing.extra) existing.extra="📍 "+venue;
+
+      // Update scores with live data
+      // Determine which ESPN team maps to which of our team1/team2
+      const t0isTeam1=_teamsMatch(t0long,existing.team1.name)||_teamsMatch(t0name,existing.team1.name);
+      const myT1data=t0isTeam1?batting0:batting1;
+      const myT2data=t0isTeam1?batting1:batting0;
+      if(myT1data.score){
+        const [r,w]=(myT1data.score||"").split("/");
+        existing.team1.score=r||existing.team1.score;
+        if(w!==undefined) existing.team1.wkts=w;
+        if(myT1data.scoreInfo) existing.team1.overs=myT1data.scoreInfo.replace("ov","").trim()+" ov";
       }
-      if(isDone&&existing.badge!=="completed"){
+      if(myT2data.score){
+        const [r,w]=(myT2data.score||"").split("/");
+        existing.team2.score=r||existing.team2.score;
+        if(w!==undefined) existing.team2.wkts=w;
+        if(myT2data.scoreInfo) existing.team2.overs=myT2data.scoreInfo.replace("ov","").trim()+" ov";
+      }
+
+      // Update badge/status
+      if(isLive&&existing.badge!=="live"){
+        existing.badge="live";
+        existing.status="🔴 LIVE";
+        matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
+        matchData.completed=matchData.completed.filter(x=>x!==existing);
+        if(!matchData.live.includes(existing)) matchData.live.unshift(existing);
+      } else if(isDone&&existing.badge!=="completed"){
         existing.badge="completed";
         matchData.live=matchData.live.filter(x=>x!==existing);
         matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
         if(!matchData.completed.includes(existing)) matchData.completed.unshift(existing);
-      } else if(isLive&&existing.badge!=="live"){
-        existing.badge="live";
-        matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
-        if(!matchData.live.includes(existing)) matchData.live.unshift(existing);
+      } else if(isLive){
+        existing.status="🔴 LIVE";
       }
       changed=true;
+
     } else if(isLive){
-      // New live match from ESPN not in our list
+      // Live match ESPN knows about but not in our hardcoded list — add it
+      const seriesName=item.series?.name||"";
+      const label=`${seriesName?seriesName+" · ":""}${_abbr(t0long)} vs ${_abbr(t1long)}`;
       matchData.live.push({
-        label:item.matchDesc||item.name||`${_normE(t1n)} vs ${_normE(t2n)}`,
-        badge:"live", apiId:item.id||item.matchId||null, _espnId:item.id,
-        team1:{flag:_teamFlag(t1n),name:_normE(t1n)||t1n,score:"",wkts:"",overs:""},
-        team2:{flag:_teamFlag(t2n),name:_normE(t2n)||t2n,score:"",wkts:"",overs:""},
-        status:item.statusText||item.status||"🔴 LIVE",
-        extra:item.venue?"📍 "+item.venue:"",result:"",listen:false
+        label, badge:"live", apiId:null, _espnId:espnId,
+        team1:{flag:_teamFlag(t0long),name:_abbr(t0long),score:score0.split("/")[0]||"",wkts:score0.split("/")[1]||"",overs:overs0},
+        team2:{flag:_teamFlag(t1long),name:_abbr(t1long),score:score1.split("/")[0]||"",wkts:score1.split("/")[1]||"",overs:overs1},
+        status:"🔴 LIVE", extra:venue?"📍 "+venue:"", result:"", listen:false
       });
       changed=true;
     }
