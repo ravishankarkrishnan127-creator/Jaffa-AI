@@ -2428,7 +2428,7 @@ async function _pollLiveCommentary(){
           let cText=ev[_liveState.style]||ev.dramatic;
           if(_liveState.ballCount%2===0){
             const battingTeam=striker&&striker.length<5?striker:_liveState.team1;
-            cText+=" — "+overs.toFixed(1)+" overs ke baad, "+battingTeam+" "+runs+" pe "+wkts+" wicket.";
+            cText+=" — "+overs.toFixed(1)+" overs ke baad, "+battingTeam+" "+runs+" for "+wkts+".";
           }
 
           // Crowd noise instantly — no waiting
@@ -2458,13 +2458,13 @@ async function _pollLiveCommentary(){
       }
     }
     const w=document.getElementById("liveWaiting");
-    if(w) w.textContent="🔴 "+runs+"/"+wkts+" ("+(overs||0).toFixed(1)+" ov) · Listening for next delivery…";
+    if(w) w.textContent="🔴 "+runs+" for "+wkts+" ("+(overs||0).toFixed(1)+" ov) · Listening for next delivery…";
   }catch(e){ console.warn("Live poll error:",e); }
   if(_liveState.active) _liveState.pollTimer=setTimeout(_pollLiveCommentary, _liveState.apiId?12000:30000);
 }
 
 function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
-  const score=runs+"/"+wkts+" ("+overs.toFixed(1)+" ov)";
+  const score=runs+" for "+wkts+" ("+overs.toFixed(1)+" ov)";
   const s=striker?striker.split(" ").pop():_liveState.team1;
   const b=bowler?bowler.split(" ").pop():"";
   const bat=_liveState.team1, bowl=_liveState.team2;
@@ -2892,6 +2892,12 @@ async function fetchLiveScores(){
     if(items&&items.length>0){
       _applyEspnToMatchData(items);
       console.log("ESPN Cricinfo enrichment ✓",items.length,"matches");
+      // If live commentary is running in ESPN-fallback mode, wake it up immediately
+      // instead of waiting for its own 30s timer — this is the latency fix
+      if(_liveState.active&&!_liveState.apiId){
+        if(_liveState.pollTimer){clearTimeout(_liveState.pollTimer);_liveState.pollTimer=null;}
+        _pollLiveCommentary();
+      }
     }
   }).catch(()=>{}).finally(()=>{ _espnPending=false; });
 }
