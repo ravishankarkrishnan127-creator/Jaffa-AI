@@ -1819,8 +1819,8 @@ function openMatchDetail(label){
   document.getElementById("matchDetailScreen").classList.remove("slide-in");
   document.getElementById("matchesScreen").classList.add("hidden");
   history.pushState({screen:"detail"},"");
-  if(m&&m.badge==="live"&&m.apiId){
-    // Live match — start real-time ball-by-ball commentary engine
+  if(m&&m.badge==="live"){
+    // Live match — start BBB engine immediately (uses CricAPI if apiId available, ESPN data as fallback)
     setTimeout(()=>_startLiveCommentary(m,"dramatic"),400);
   } else if(d&&d.bbb&&d.bbb.length){
     // Completed match with hardcoded BBB — auto-start highlight commentary
@@ -1842,10 +1842,10 @@ function switchDetTab(tab,el){
   detTab=tab;
   document.querySelectorAll(".det-tab").forEach(t=>t.classList.remove("active"));
   el.classList.add("active");
-  // For live matches: switching to Scorecard tab triggers a partial scorecard fetch
-  if(tab==="scorecard"&&_liveState.active&&_liveState.apiId&&!matchDetails[detKey]){
-    _autoFetchMatchDetails(detKey,_liveState.apiId);
-    return; // _autoFetchMatchDetails calls renderDetBody when done
+  // For live matches: if CricAPI apiId available, fetch full scorecard; otherwise show ESPN scores
+  if(tab==="scorecard"&&_liveState.active&&!matchDetails[detKey]){
+    if(_liveState.apiId){ _autoFetchMatchDetails(detKey,_liveState.apiId); return; }
+    // No apiId yet — renderScorecard will show live scores from matchData
   }
   renderDetBody();
   if(tab==="chat"&&!_chatBC) _initChat();
@@ -2063,7 +2063,21 @@ function renderBBB(){
 
 function renderScorecard(){
   const d=matchDetails[detKey];
-  if(!d)return"<div style='padding:40px;text-align:center;color:#444'>Scorecard coming soon</div>";
+  if(!d){
+    // No detailed data — show live scores from matchData (populated by ESPN)
+    const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
+    const m=all.find(x=>x.label===detKey);
+    if(!m) return"<div style='padding:40px;text-align:center;color:#444'>Scorecard loading…</div>";
+    const t1=m.team1, t2=m.team2;
+    const row=(t,label)=>t.score?`<div style='display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #1e2b3a'>
+      <span style='font-weight:700;color:#e0e6ef'>${t.flag} ${t.name}</span>
+      <span style='color:#f5c842;font-weight:700'>${t.score}${t.wkts!==undefined&&t.wkts!==''?' / '+t.wkts:''} <span style='color:#888;font-size:12px'>${t.overs||''}</span></span></div>`:'';
+    return`<div style='background:#0d1b2a;border-radius:12px;overflow:hidden;margin:8px'>
+      <div style='padding:12px 16px;background:#112236;color:#7ea8d0;font-size:12px;text-transform:uppercase;letter-spacing:1px'>Live Scorecard</div>
+      ${row(t1)+''+row(t2)}
+      <div style='padding:12px 16px;color:#556;font-size:12px'>Full scorecard loads after match ends · Updates every 30s via ESPN</div>
+    </div>`;
+  }
   const inn=(data)=>{
     const batRows=data.rows.map(r=>"<tr><td><span class=sc-bname>"+r.n+"</span>"+(r.no?"<span class=sc-notout>not out</span>":"<span class=sc-dismiss>"+r.d+"</span>")+"</td><td><b>"+r.r+"</b></td><td style='color:#555'>"+r.b+"</td><td>"+r.f+"</td><td>"+r.s+"</td></tr>").join("");
     const bowlRows=data.bowl.map(b=>"<tr><td>"+b.n+"</td><td>"+b.o+"</td><td>"+b.r+"</td><td><b>"+b.w+"</b></td><td style='color:#555'>"+b.eco+"</td></tr>").join("");
@@ -2304,30 +2318,52 @@ function _stopLiveCommentary(){
 async function _pollLiveCommentary(){
   if(!_liveState.active) return;
   try{
-    // Fetch detailed match data — try /match first for batsmen/bowler, fall back to currentMatches
-    const r=await fetch(_cricketURL("match",{id:_liveState.apiId}));
-    const json=await r.json();
-    if(json.status!=="success"||!json.data) throw new Error("no data");
-    const md=json.data;
-    const scores=md.score||[];
-    const inn=scores[scores.length-1]||{};
-    const runs=inn.r||0, wkts=inn.w||0, overs=parseFloat(inn.o)||0;
-    // Try to extract current batsman & bowler from whatever fields the API returns
-    const striker=md.striker?.name||md.currentBatsmen?.[0]?.name||
-                  md.batsmanRuns?.[0]?.batName||md.batTeamDetails?.batsmenData?.[0]?.batName||"";
-    const bowler=md.bowler?.name||md.currentBowler?.name||
-                 md.bowlerRuns?.[0]?.bowlName||"";
+    let runs=0, wkts=0, overs=0, striker="", bowler="", matchEnded=false;
 
-    if(md.matchEnded){
+    if(_liveState.apiId){
+      // ── CricAPI path (preferred — has batsman/bowler names) ──
+      const r=await fetch(_cricketURL("match",{id:_liveState.apiId}));
+      const json=await r.json();
+      if(json.status!=="success"||!json.data) throw new Error("cricapi no data");
+      const md=json.data;
+      const scores=md.score||[];
+      const inn=scores[scores.length-1]||{};
+      runs=inn.r||0; wkts=inn.w||0; overs=parseFloat(inn.o)||0;
+      striker=md.striker?.name||md.currentBatsmen?.[0]?.name||
+              md.batsmanRuns?.[0]?.batName||md.batTeamDetails?.batsmenData?.[0]?.batName||"";
+      bowler=md.bowler?.name||md.currentBowler?.name||md.bowlerRuns?.[0]?.bowlName||"";
+      matchEnded=!!md.matchEnded;
+    } else {
+      // ── ESPN/matchData fallback (no CricAPI ID — reads from in-memory matchData updated by ESPN) ──
+      const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
+      const m=all.find(x=>x.label===detKey);
+      if(!m) throw new Error("match not found in matchData");
+      // Determine active innings: team with fewer overs is currently batting
+      const o1=parseFloat(m.team1.overs)||0, o2=parseFloat(m.team2.overs)||0;
+      const r1=parseInt(m.team1.score)||0, w1=parseInt(m.team1.wkts)||0;
+      const r2=parseInt(m.team2.score)||0, w2=parseInt(m.team2.wkts)||0;
+      // Active innings = the one being updated (lower overs = still in progress, or first innings not done)
+      if(o1>0&&o2>0){
+        // Both innings have data — second innings is live (lower over count = still batting)
+        if(o2<o1){runs=r2;wkts=w2;overs=o2;striker=m.team2.name;bowler=m.team1.name;}
+        else{runs=r1;wkts=w1;overs=o1;striker=m.team1.name;bowler=m.team2.name;}
+      } else if(o1>0){runs=r1;wkts=w1;overs=o1;striker=m.team1.name;}
+      else{runs=r2;wkts=w2;overs=o2;striker=m.team2.name;}
+      matchEnded=m.badge==="completed";
+      // If CricAPI ID has arrived since we started, grab it for future polls
+      if(m.apiId) _liveState.apiId=m.apiId;
+    }
+
+    if(matchEnded){
       _stopLiveCommentary();
       const w=document.getElementById("liveWaiting");
       if(w) w.textContent="✅ Match over — loading full scorecard…";
-      setTimeout(()=>_autoFetchMatchDetails(detKey,_liveState.apiId),1000);
+      if(_liveState.apiId) setTimeout(()=>_autoFetchMatchDetails(detKey,_liveState.apiId),1000);
       return;
     }
 
     if(_liveState.lastRuns<0){
-      // First poll — baseline only, no commentary yet
+      // First poll — set baseline, no commentary yet
       _liveState.lastRuns=runs; _liveState.lastWkts=wkts; _liveState.lastOvers=overs;
     } else {
       const rd=runs-_liveState.lastRuns;
@@ -2340,7 +2376,6 @@ async function _pollLiveCommentary(){
           _addLiveFeedEntry(ev.type,ev.text,cText);
           const vi=(ev.type==="WICKET"||ev.type==="SIX")?1:(ev.type==="FOUR")?0:_liveState.entryCount%2;
           _liveState.entryCount++;
-          // Camb AI primary → Gemini backup. Device voices NEVER used.
           const ck="live:"+ev.type+":"+runs+":"+wkts;
           const liveCrowd=(ev.type==="WICKET"||ev.type==="SIX")?"big":(ev.type==="FOUR")?"medium":"ambient";
           _playCrowdNoise(liveCrowd);
@@ -2349,9 +2384,10 @@ async function _pollLiveCommentary(){
       }
     }
     const w=document.getElementById("liveWaiting");
-    if(w) w.textContent="🔴 "+runs+"/"+wkts+" ("+overs.toFixed(1)+" ov) · Listening for next delivery…";
+    if(w) w.textContent="🔴 "+runs+"/"+wkts+" ("+(overs||0).toFixed(1)+" ov) · Listening for next delivery…";
   }catch(e){ console.warn("Live poll error:",e); }
-  if(_liveState.active) _liveState.pollTimer=setTimeout(_pollLiveCommentary,12000);
+  // Poll every 12s with CricAPI; every 30s on ESPN fallback (matches ESPN refresh rate)
+  if(_liveState.active) _liveState.pollTimer=setTimeout(_pollLiveCommentary, _liveState.apiId?12000:30000);
 }
 
 function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
@@ -2698,6 +2734,11 @@ async function _fetchCricapiScores(){
 
       if(existing){
         existing.apiId=m.id;
+        // If detail screen is open and live commentary is running in ESPN-fallback mode,
+        // upgrade it to CricAPI mode now that we have the ID (12s polling, batsman/bowler names)
+        if(isLive&&existing.badge==="live"&&detKey===existing.label&&_liveState.active&&!_liveState.apiId){
+          _liveState.apiId=m.id;
+        }
         // Only update score if API value looks valid (not 0/0 on a started match)
         const s1=m.score&&m.score.find(s=>s.inning&&_namesMatch(t1n,s.inning));
         const s2=m.score&&m.score.find(s=>s.inning&&_namesMatch(t2n,s.inning));
@@ -2743,18 +2784,22 @@ async function _fetchCricapiScores(){
 // CricAPI fires first (fast, ~1-2s) for immediate data.
 // ESPN Cricinfo fires simultaneously in background (authoritative, ~10-20s) and overrides when ready.
 // Worker Apify timeout=20s — safe under Cloudflare's 30s wall-clock limit.
+let _espnPending=false; // guard against stacked ESPN calls
 async function fetchLiveScores(){
   // CricAPI: fast baseline, awaited so UI updates immediately
   try{ await _fetchCricapiScores(); }
   catch(e){ console.warn("CricAPI fetch failed:",e); }
 
   // ESPN Cricinfo: richer/more authoritative — fires in background, overrides CricAPI data on arrival
+  // Skip if a prior ESPN call is still in flight (prevents stacking)
+  if(_espnPending) return;
+  _espnPending=true;
   _fetchEspnLiveScores().then(items=>{
     if(items&&items.length>0){
       _applyEspnToMatchData(items);
       console.log("ESPN Cricinfo enrichment ✓",items.length,"matches");
     }
-  }).catch(()=>{});
+  }).catch(()=>{}).finally(()=>{ _espnPending=false; });
 }
 
 // Apply ESPN Cricinfo data to matchData.
