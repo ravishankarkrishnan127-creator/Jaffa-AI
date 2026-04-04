@@ -307,40 +307,64 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
 const LOGIN_KEY = "jaffa_user_phone";
 let errorTimer = null, logoutOpen = false, currentTab = "live";
 
-// ── REAL DATA (updated 3 Apr 2026) ──
+// ── REAL DATA (updated 4 Apr 2026) ──
 const matchData = {
   live: [],
   upcoming: [
     {
-      label:"IPL 2026 · 7th Match", badge:"upcoming",
-      team1:{flag:"🔴",name:"RCB",score:"",wkts:"",overs:""},
-      team2:{flag:"💜",name:"MI",score:"",wkts:"",overs:""},
-      status:"<span style='color:#ff9f40'>🕖 Tonight · 7:30 PM IST</span>",
-      extra:"📍 M. Chinnaswamy Stadium, Bengaluru · Apr 4, 2026",
-      result:"", listen:false
-    },
-    {
       label:"IPL 2026 · 8th Match", badge:"upcoming",
-      team1:{flag:"🔵",name:"GT",score:"",wkts:"",overs:""},
-      team2:{flag:"🩷",name:"RR",score:"",wkts:"",overs:""},
-      status:"<span style='color:#ff9f40'>🕖 Apr 5 · 3:30 PM IST</span>",
-      extra:"📍 Narendra Modi Stadium, Ahmedabad · Apr 5, 2026",
+      team1:{flag:"🔵",name:"DC",score:"",wkts:"",overs:""},
+      team2:{flag:"🔵",name:"MI",score:"",wkts:"",overs:""},
+      status:"<span style='color:#ff9f40'>🕖 Today · 3:30 PM IST</span>",
+      extra:"📍 Arun Jaitley Stadium, Delhi · Apr 4, 2026",
       result:"", listen:false
     },
     {
       label:"IPL 2026 · 9th Match", badge:"upcoming",
+      team1:{flag:"🟠",name:"SRH",score:"",wkts:"",overs:""},
+      team2:{flag:"🟡",name:"LSG",score:"",wkts:"",overs:""},
+      status:"<span style='color:#ff9f40'>🕖 Apr 5 · 3:30 PM IST</span>",
+      extra:"📍 Rajiv Gandhi International Cricket Stadium, Hyderabad · Apr 5, 2026",
+      result:"", listen:false
+    },
+    {
+      label:"IPL 2026 · 10th Match", badge:"upcoming",
+      team1:{flag:"🔴",name:"RCB",score:"",wkts:"",overs:""},
+      team2:{flag:"🟡",name:"CSK",score:"",wkts:"",overs:""},
+      status:"<span style='color:#ff9f40'>🕖 Apr 5 · 7:30 PM IST</span>",
+      extra:"📍 M. Chinnaswamy Stadium, Bengaluru · Apr 5, 2026",
+      result:"", listen:false
+    },
+    {
+      label:"IPL 2026 · 11th Match", badge:"upcoming",
       team1:{flag:"💜",name:"KKR",score:"",wkts:"",overs:""},
-      team2:{flag:"🟠",name:"SRH",score:"",wkts:"",overs:""},
+      team2:{flag:"🔴",name:"PBKS",score:"",wkts:"",overs:""},
       status:"<span style='color:#ff9f40'>🕖 Apr 6 · 7:30 PM IST</span>",
       extra:"📍 Eden Gardens, Kolkata · Apr 6, 2026",
+      result:"", listen:false
+    },
+    {
+      label:"IPL 2026 · 12th Match", badge:"upcoming",
+      team1:{flag:"🩷",name:"RR",score:"",wkts:"",overs:""},
+      team2:{flag:"🔵",name:"MI",score:"",wkts:"",overs:""},
+      status:"<span style='color:#ff9f40'>🕖 Apr 7 · 7:30 PM IST</span>",
+      extra:"📍 Sawai Mansingh Stadium, Jaipur · Apr 7, 2026",
       result:"", listen:false
     }
   ],
   completed: [
     {
+      label:"IPL 2026 · 7th Match", badge:"completed",
+      team1:{flag:"🟡",name:"CSK",score:"209",wkts:"5",overs:"20.0 ov"},
+      team2:{flag:"🔴",name:"PBKS",score:"210",wkts:"5",overs:"18.4 ov",winner:true},
+      status:"<span class=hl-g>Punjab Kings won by 5 wickets</span>",
+      extra:"📍 MA Chidambaram Stadium, Chennai · Apr 3, 2026",
+      result:"✅ PBKS won by 5 wkts", listen:false
+    },
+    {
       label:"IPL 2026 · 6th Match", badge:"completed",
       team1:{flag:"🟠",name:"SRH",score:"226",wkts:"8",overs:"20.0 ov",winner:true},
-      team2:{flag:"💜",name:"KKR",score:"161",wkts:"10",overs:"18.3 ov"},
+      team2:{flag:"💜",name:"KKR",score:"161",wkts:"10",overs:"16.0 ov"},
       status:"<span class=hl-g>Sunrisers Hyderabad won by 65 runs</span>",
       extra:"📍 Eden Gardens, Kolkata · Apr 2, 2026",
       result:"✅ SRH won by 65 runs", listen:true
@@ -354,27 +378,27 @@ const matchData = {
       result:"✅ DC won by 6 wkts", listen:true
     },
     {
-      label:"IPL 2026 · 3rd Match", badge:"completed",
-      team1:{flag:"🟡",name:"CSK",score:"127",wkts:"all out",overs:"19.4 ov"},
-      team2:{flag:"🩷",name:"RR",score:"128",wkts:"2",overs:"12.1 ov",winner:true},
-      status:"<span class=hl-g>Rajasthan Royals won by 8 wickets</span>",
-      extra:"📍 Barsapara Cricket Stadium, Guwahati",
-      result:"✅ RR won by 8 wkts", listen:true
+      label:"IPL 2026 · 4th Match", badge:"completed",
+      team1:{flag:"🔴",name:"PBKS",score:"165",wkts:"7",overs:"19.1 ov",winner:true},
+      team2:{flag:"🔵",name:"GT",score:"162",wkts:"6",overs:"20.0 ov"},
+      status:"<span class=hl-g>Punjab Kings won by 3 wickets</span>",
+      extra:"📍 Maharaja Yadavindra Singh Stadium, New Chandigarh · Mar 31, 2026",
+      result:"✅ PBKS won by 3 wkts", listen:false
     },
     {
-      label:"IPL 2026 · 4th Match", badge:"completed",
-      team1:{flag:"🔵",name:"GT",score:"162",wkts:"6",overs:"20.0 ov"},
-      team2:{flag:"🔴",name:"PBKS",score:"165",wkts:"7",overs:"19.1 ov",winner:true},
-      status:"<span class=hl-g>Punjab Kings won by 3 wickets</span>",
-      extra:"📍 Maharaja Yadavindra Singh Stadium, New Chandigarh",
-      result:"✅ PBKS won by 3 wkts", listen:false
+      label:"IPL 2026 · 3rd Match", badge:"completed",
+      team1:{flag:"🟡",name:"CSK",score:"127",wkts:"10",overs:"19.4 ov"},
+      team2:{flag:"🩷",name:"RR",score:"128",wkts:"2",overs:"12.1 ov",winner:true},
+      status:"<span class=hl-g>Rajasthan Royals won by 8 wickets</span>",
+      extra:"📍 Barsapara Cricket Stadium, Guwahati · Mar 30, 2026",
+      result:"✅ RR won by 8 wkts", listen:true
     },
     {
       label:"IPL 2026 · 2nd Match", badge:"completed",
       team1:{flag:"💜",name:"KKR",score:"220",wkts:"4",overs:"20.0 ov"},
       team2:{flag:"🔵",name:"MI",score:"224",wkts:"4",overs:"19.1 ov",winner:true},
       status:"<span class=hl-g>Mumbai Indians won by 6 wickets</span>",
-      extra:"📍 Eden Gardens, Kolkata",
+      extra:"📍 Eden Gardens, Kolkata · Mar 29, 2026",
       result:"✅ MI won by 6 wkts", listen:false
     },
     {
@@ -382,16 +406,16 @@ const matchData = {
       team1:{flag:"🔴",name:"RCB",score:"179",wkts:"4",overs:"18.3 ov",winner:true},
       team2:{flag:"🟠",name:"SRH",score:"175",wkts:"7",overs:"20.0 ov"},
       status:"<span class=hl-g>Royal Challengers Bengaluru won by 6 wickets</span>",
-      extra:"📍 M. Chinnaswamy Stadium, Bengaluru",
+      extra:"📍 M. Chinnaswamy Stadium, Bengaluru · Mar 28, 2026",
       result:"✅ RCB won by 6 wkts", listen:false
     },
     {
-      label:"AUS Women in WI · 2nd ODI", badge:"completed",
-      team1:{flag:"🇦🇺",name:"AUS-W",score:"269",wkts:"7",overs:"50.0 ov",winner:true},
-      team2:{flag:"🏝️",name:"WI-W",score:"179",wkts:"all out",overs:"46.0 ov"},
-      status:"<span class=hl-g>Australia Women won by 90 runs</span>",
-      extra:"📍 Warner Park, Basseterre, St Kitts",
-      result:"✅ AUS Women won by 90 runs", listen:false
+      label:"AUS Women in WI · 3rd ODI", badge:"completed",
+      team1:{flag:"🏝️",name:"WI-W",score:"136",wkts:"10",overs:"35.4 ov"},
+      team2:{flag:"🇦🇺",name:"AUS-W",score:"137",wkts:"1",overs:"19.4 ov",winner:true},
+      status:"<span class=hl-g>Australia Women won by 9 wickets</span>",
+      extra:"📍 Warner Park, Basseterre, St Kitts · Apr 2, 2026",
+      result:"✅ AUS Women won by 9 wkts", listen:false
     }
   ],
   get ipl() { return [...this.live,...this.upcoming,...this.completed].filter(m=>m.label.includes("IPL")); },
@@ -2609,12 +2633,24 @@ function _teamFlag(name){
   return "🏏";
 }
 
-// ── CRICAPI SCORES — internal helper (used as fallback) ──
+// ── CRICAPI SCORES — internal helper ──
+// Fetches TWO pages: offset=0 (non-IPL) + offset=25 (IPL 2026 matches)
 async function _fetchCricapiScores(){
-  const r=await fetch(_cricketURL("currentMatches",{offset:0}));
-  if(!r.ok) throw new Error("HTTP "+r.status);
-  const data=await r.json();
-  if(data.status!=="success"||!Array.isArray(data.data)) return;
+  // Fetch both offsets in parallel — IPL matches appear at offset=25
+  const [r0, r25] = await Promise.all([
+    fetch(_cricketURL("currentMatches",{offset:0})),
+    fetch(_cricketURL("currentMatches",{offset:25}))
+  ]);
+  const [d0, d25] = await Promise.all([r0.json(), r25.json()]);
+  // Merge both pages; skip any that failed
+  const matches0  = (d0.status==="success"  && Array.isArray(d0.data))  ? d0.data  : [];
+  const matches25 = (d25.status==="success" && Array.isArray(d25.data)) ? d25.data : [];
+  const allMatches = [...matches0, ...matches25];
+  if(!allMatches.length) return;
+
+  // Deduplicate by match id (in case of overlap)
+  const seen=new Set();
+  const data={data: allMatches.filter(m=>{ if(seen.has(m.id)) return false; seen.add(m.id); return true; })};
 
     const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
     let changed=false;
@@ -2700,12 +2736,22 @@ async function _fetchCricapiScores(){
     if(changed) renderMatches(currentTab);
 }
 
-// ── MASTER LIVE SCORE FETCHER — CricAPI only (ESPN disabled until Worker is stable) ──
+// ── MASTER LIVE SCORE FETCHER ──
+// CricAPI fires first (fast, ~1-2s) for immediate data.
+// ESPN Cricinfo fires simultaneously in background (authoritative, ~10-20s) and overrides when ready.
+// Worker Apify timeout=20s — safe under Cloudflare's 30s wall-clock limit.
 async function fetchLiveScores(){
+  // CricAPI: fast baseline, awaited so UI updates immediately
   try{ await _fetchCricapiScores(); }
   catch(e){ console.warn("CricAPI fetch failed:",e); }
-  // ESPN via Apify intentionally disabled — was flooding the Worker with 55s hanging requests.
-  // Re-enable only after deploying worker.js with timeout=8.
+
+  // ESPN Cricinfo: richer/more authoritative — fires in background, overrides CricAPI data on arrival
+  _fetchEspnLiveScores().then(items=>{
+    if(items&&items.length>0){
+      _applyEspnToMatchData(items);
+      console.log("ESPN Cricinfo enrichment ✓",items.length,"matches");
+    }
+  }).catch(()=>{});
 }
 
 // Apply ESPN data to matchData — updates scores, venue, status and adds new live matches
