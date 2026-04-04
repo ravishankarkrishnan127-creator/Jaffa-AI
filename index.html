@@ -2286,7 +2286,8 @@ let _liveState={
   pollTimer:null, lastRuns:-1, lastWkts:-1, lastOvers:-1,
   entryCount:0, ballCount:0, team1:"", team2:""
 };
-let _ambientNode=null; // continuous crowd buzz node
+let _ambientNode=null;
+let _pollActive=false; // guard: prevent two concurrent polls
 
 // Continuous low-level stadium buzz — loops while match is live
 function _startAmbientCrowd(){
@@ -2345,15 +2346,18 @@ function _startLiveCommentary(matchObj, style){
 
 function _stopLiveCommentary(){
   _liveState.active=false;
+  _pollActive=false;
   if(_liveState.pollTimer){clearTimeout(_liveState.pollTimer);_liveState.pollTimer=null;}
   if(_currentAudio){try{_currentAudio.pause();}catch(e){}_currentAudio=null;}
   _stopAmbientCrowd();
+  try{speechSynthesis.cancel();}catch(e){}
   document.getElementById("ssCommStatus").textContent="";
   document.querySelectorAll(".ss-style-btn").forEach(b=>b.classList.remove("loading"));
 }
 
 async function _pollLiveCommentary(){
-  if(!_liveState.active) return;
+  if(!_liveState.active||_pollActive) return;
+  _pollActive=true;
   try{
     let runs=0, wkts=0, overs=0, striker="", bowler="", matchEnded=false;
     let t1runs=null,t1wkts=null,t1overs=null,t2runs=null,t2wkts=null,t2overs=null;
@@ -2436,23 +2440,15 @@ async function _pollLiveCommentary(){
           const isMed=ev.type==="FOUR"||rd>=5;
           _burstCrowd(isBig?"big":isMed?"medium":"small");
 
-          // Show text in BBB feed immediately
+          // Show text in BBB feed immediately — audio fetches in parallel
           _addLiveFeedEntry(ev.type,ev.text,cText);
 
-          // INSTANT audio via Web Speech (zero latency) — fires same frame as text
-          _speakNow(cText, ev.type);
-
-          // Simultaneously fetch high-quality TTS — when ready, upgrade audio
           const vi=(ev.type==="WICKET"||ev.type==="SIX")?1:(ev.type==="FOUR")?0:_liveState.entryCount%2;
           _liveState.entryCount++;
           const ck="live:"+ev.type+":"+runs+":"+wkts;
+          // Fetch TTS — Camb AI primary, Gemini fallback. Play as soon as ready.
           _fetchTTS(cText,vi).then(u=>{
-            if(u&&_ttsCache[ck]!==u){
-              _ttsCache[ck]=u;
-              // Only upgrade if Web Speech already done (don't cut it short mid-sentence)
-              if(!speechSynthesis.speaking) _playAudio(u);
-              else { speechSynthesis.cancel(); _playAudio(u); }
-            }
+            if(u){ _ttsCache[ck]=u; _playAudio(u); }
           }).catch(()=>{});
         }
       }
@@ -2460,7 +2456,12 @@ async function _pollLiveCommentary(){
     const w=document.getElementById("liveWaiting");
     if(w) w.textContent="🔴 "+runs+" for "+wkts+" ("+(overs||0).toFixed(1)+" ov) · Listening for next delivery…";
   }catch(e){ console.warn("Live poll error:",e); }
-  if(_liveState.active) _liveState.pollTimer=setTimeout(_pollLiveCommentary, _liveState.apiId?12000:30000);
+  finally{ _pollActive=false; }
+  // Always reschedule — 12s via CricAPI, 30s via ESPN fallback
+  if(_liveState.active){
+    if(_liveState.pollTimer) clearTimeout(_liveState.pollTimer);
+    _liveState.pollTimer=setTimeout(_pollLiveCommentary, _liveState.apiId?12000:30000);
+  }
 }
 
 function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
