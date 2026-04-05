@@ -2920,52 +2920,9 @@ async function _autoFetchMatchDetails(label, apiId){
       });
     });
 
-    // Try to enrich with real ball-by-ball data from CricAPI match_bbb endpoint
-    try{
-      const bbbResp=await fetch(_cricketURL("match_bbb",{id:apiId}));
-      if(bbbResp.ok){
-        const bbbJson=await bbbResp.json();
-        if(bbbJson.status==="success"&&Array.isArray(bbbJson.data?.bbb)&&bbbJson.data.bbb.length>0){
-          // Merge real ball data — extract key events and override synthetic bbb
-          const realBalls=bbbJson.data.bbb;
-          const realEvents=[];
-          const _typeMap={"WICKET":"WICKET","SIX":"SIX","FOUR":"FOUR","50":"FIFTY","100":"HUNDRED","WD":"wide","NB":"noball"};
-          realBalls.forEach(ball=>{
-            const rt=ball.runType||ball.type||"";
-            const evType=_typeMap[rt]||(parseInt(ball.r||0)>=6?"SIX":parseInt(ball.r||0)===4?"FOUR":null);
-            if(!evType||!["WICKET","SIX","FOUR","FIFTY","HUNDRED"].includes(evType)) return;
-            const batter=ball.batsmanName||ball.batsman||"Batter";
-            const bowler=ball.bowlerName||ball.bowler||"Bowler";
-            const last=batter.split(" ").pop();
-            const ov=ball.over||ball.overs||"";
-            const runs=ball.totalRuns||ball.innings_total||"";
-            const wkts=ball.totalWickets||"";
-            const scoreStr=runs?`${runs}/${wkts}`:ov;
-            let text="",dramatic="",funny="",analytical="";
-            if(evType==="WICKET"){
-              text=`${batter} — OUT! Caught/bowled by ${bowler}. ${ball.howOut||ball.dismissal||""}`;
-              dramatic=`WICKET! ${last} OUT! ${bowler} ne nikaala! Stadium jhoom utha! Match ka khaas moment!`;
-              funny=`${last} ne ${bowler} ko ek mauka diya — aur woh mauka gaya nahi! OUT! Dressing room ki taraf!`;
-              analytical=`${batter} out — ${bowler} ne liya. ${ball.howOut||ball.dismissal||''}. Over ${ov}. Team score ${scoreStr}.`;
-            } else if(evType==="SIX"){
-              text=`${batter} — launches ${bowler} for SIX! Maximum! Over ${ov}.`;
-              dramatic=`CHHA! ${last} ne ${bowler} ko stadium ke bahar bhej diya! Kya shot tha — crowd standing!`;
-              funny=`${last} ne ${bowler} ki ball ko 'address change' karwa di! SIX! Ball abhi bhi ja rahi hai!`;
-              analytical=`${batter} ne ${bowler} ko SIX maar diya. Over ${ov}. Team ${scoreStr} pe. Momentum shift.`;
-            } else if(evType==="FOUR"){
-              text=`${batter} — drives/cuts ${bowler} for FOUR! Over ${ov}.`;
-              dramatic=`CHAAR! ${last} ne ${bowler} ko boundary pe bheja! Excellent timing — kya shot!`;
-              funny=`${last} ne ${bowler} ko FOUR maar di! Fielder ne boundary ki taraf dauda aur... nahi pahuncha!`;
-              analytical=`${batter} ne ${bowler} ki ball pe FOUR maari. Over ${ov}. Team ${scoreStr} pe. Achha shot.`;
-            }
-            realEvents.push({over:String(ov),type:evType,text,dramatic,funny,analytical,score:scoreStr||label});
-          });
-          if(realEvents.length>=3){
-            built.bbb=realEvents; // Replace synthetic with real ball data
-          }
-        }
-      }
-    }catch(bbbErr){ console.warn("match_bbb fetch failed:",bbbErr.message); }
+    // NOTE: match_bbb enrichment removed — CricAPI's ball-by-ball data for completed
+    // matches contained wrong player names (players who didn't play the match).
+    // The synthetic BBB above (built from matchScorecard stats) is more accurate.
 
     if(built.bbb.length===0){
       const mt="Ek aur jabarjast match! Kya cricket tha yaar! "+(sc.status||"");
@@ -3170,6 +3127,29 @@ async function _fetchCricapiScores(){
       }
     });
 
+    // ── Auto-expire stale upcoming matches ──
+    // CricAPI only returns matches for the next ~7 days. If an upcoming match
+    // disappears from the feed entirely, it has either started or been cancelled.
+    // After 2 polls without seeing it, move it from upcoming → completed.
+    if(!matchData._seenIds) matchData._seenIds=new Map(); // label → last-seen poll count
+    const seenThisPoll=new Set(data.data.map(m=>m.id));
+    matchData.upcoming.forEach(m=>{
+      if(!m.apiId) return; // hardcoded matches without apiId — skip
+      if(seenThisPoll.has(m.apiId)){
+        matchData._seenIds.set(m.label, _cricapiPollCount);
+      } else {
+        const lastSeen=matchData._seenIds.get(m.label)||0;
+        // If not seen for 2+ polls (≥ ~6 min), it's probably started/done — move to completed
+        if(_cricapiPollCount-lastSeen>=2){
+          m.badge="completed";
+          m.result=m.result||"✅ Match completed";
+          matchData.upcoming=matchData.upcoming.filter(x=>x!==m);
+          if(!matchData.completed.find(x=>x.label===m.label)) matchData.completed.unshift(m);
+          changed=true;
+        }
+      }
+    });
+
     if(changed) renderMatches(currentTab);
 }
 
@@ -3294,8 +3274,9 @@ function _applyEspnToMatchData(items){
         matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
         matchData.completed=matchData.completed.filter(x=>x!==existing);
         if(!matchData.live.includes(existing)) matchData.live.unshift(existing);
-      } else if(isDone&&existing.badge!=="completed"){
+      } else if((isDone||item.status==="RESULT"||item.status==="result")&&existing.badge!=="completed"){
         existing.badge="completed";
+        existing.result=existing.result||"✅ "+(item.status||"Match completed");
         matchData.live=matchData.live.filter(x=>x!==existing);
         matchData.upcoming=matchData.upcoming.filter(x=>x!==existing);
         if(!matchData.completed.includes(existing)) matchData.completed.unshift(existing);
