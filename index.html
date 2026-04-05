@@ -307,18 +307,10 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
 const LOGIN_KEY = "jaffa_user_phone";
 let errorTimer = null, logoutOpen = false, currentTab = "live";
 
-// ── REAL DATA (updated 5 Apr 2026) ──
+// ── REAL DATA (updated 6 Apr 2026) ──
 const matchData = {
   live: [],
   upcoming: [
-    {
-      label:"IPL 2026 · 11th Match", badge:"upcoming",
-      team1:{flag:"🔴",name:"RCB",score:"",wkts:"",overs:""},
-      team2:{flag:"🟡",name:"CSK",score:"",wkts:"",overs:""},
-      status:"<span style='color:#ff9f40'>🕖 Apr 5 · 7:30 PM IST</span>",
-      extra:"📍 M. Chinnaswamy Stadium, Bengaluru · Apr 5, 2026",
-      result:"", listen:false
-    },
     {
       label:"IPL 2026 · 12th Match", badge:"upcoming",
       team1:{flag:"💜",name:"KKR",score:"",wkts:"",overs:""},
@@ -332,11 +324,27 @@ const matchData = {
       team1:{flag:"🩷",name:"RR",score:"",wkts:"",overs:""},
       team2:{flag:"🔵",name:"MI",score:"",wkts:"",overs:""},
       status:"<span style='color:#ff9f40'>🕖 Apr 7 · 7:30 PM IST</span>",
-      extra:"📍 Sawai Mansingh Stadium, Jaipur · Apr 7, 2026",
+      extra:"📍 ACA Stadium, Guwahati · Apr 7, 2026",
+      result:"", listen:false
+    },
+    {
+      label:"IPL 2026 · 14th Match", badge:"upcoming",
+      team1:{flag:"🔵",name:"DC",score:"",wkts:"",overs:""},
+      team2:{flag:"🔵",name:"GT",score:"",wkts:"",overs:""},
+      status:"<span style='color:#ff9f40'>🕖 Apr 8 · 7:30 PM IST</span>",
+      extra:"📍 Arun Jaitley Stadium, Delhi · Apr 8, 2026",
       result:"", listen:false
     }
   ],
   completed: [
+    {
+      label:"IPL 2026 · 11th Match", badge:"completed",
+      team1:{flag:"🔴",name:"RCB",score:"250",wkts:"3",overs:"20.0 ov",winner:true},
+      team2:{flag:"🟡",name:"CSK",score:"207",wkts:"10",overs:"20.0 ov"},
+      status:"<span class=hl-g>Royal Challengers Bengaluru won by 43 runs</span>",
+      extra:"📍 M. Chinnaswamy Stadium, Bengaluru · Apr 5, 2026",
+      result:"✅ RCB won by 43 runs (Tim David 70)", listen:false
+    },
     {
       label:"IPL 2026 · 10th Match", badge:"completed",
       team1:{flag:"🟠",name:"SRH",score:"156",wkts:"9",overs:"20.0 ov"},
@@ -3079,10 +3087,6 @@ async function _fetchCricapiScores(){
       fetch(_cricketURL("currentMatches",{offset:25}))
     ]);
     const [d0,d25]=await Promise.all([r0.json(),r25.json()]);
-    // DEBUG: log raw API response status
-    console.log("CricAPI offset=0 status:",d0.status,"count:",d0.data?.length,"msg:",d0.message||d0.reason||"");
-    console.log("CricAPI offset=25 status:",d25.status,"count:",d25.data?.length,"msg:",d25.message||d25.reason||"");
-    if(d0.status!=="success"||d25.status!=="success") _showToast("CricAPI error: "+JSON.stringify({s0:d0.status,s25:d25.status,m:d0.message||d0.reason||d25.message||d25.reason}),10000);
     const m0=(d0.status==="success"&&Array.isArray(d0.data))?d0.data:[];
     const m25=(d25.status==="success"&&Array.isArray(d25.data))?d25.data:[];
     // Remember which offset has franchise league matches
@@ -3113,15 +3117,7 @@ async function _fetchCricapiScores(){
     })) _cricapiOffset=offsetToUse;
   }
 
-  // DEBUG — shows status on screen so you don't need DevTools
-  const _liveCount=allMatches.filter(m=>m.matchStarted&&!m.matchEnded).length;
-  _showToast("CricAPI #"+_cricapiPollCount+": "+allMatches.length+" matches, "+_liveCount+" live", 6000);
-  console.log("🏏 CricAPI poll #"+_cricapiPollCount+": "+allMatches.length+" total, "+_liveCount+" live");
-  allMatches.forEach(m=>console.log(" "+(m.matchStarted&&!m.matchEnded?"🔴":"⚪"),m.teams?.join(" vs "),"|",m.name,"|",m.series||"(no series)","| started="+m.matchStarted,"ended="+m.matchEnded));
-  if(!allMatches.length){
-    _showToast("⚠️ CricAPI: 0 matches — check CRICKET_KEY in Cloudflare", 8000);
-    return;
-  }
+  if(!allMatches.length) return;
   const seen=new Set();
   const data={data:allMatches.filter(m=>{ if(seen.has(m.id)) return false; seen.add(m.id); return true; })};
 
@@ -3153,8 +3149,6 @@ async function _fetchCricapiScores(){
       const isDone=m.matchEnded;
       const seriesStr=((m.name||"")+" "+(m.series||"")).toLowerCase();
       const teamsStr=(t1n+" "+t2n).toLowerCase();
-      // DEBUG
-      if(isLive) console.log("🔴 LIVE match found:",t1n,"vs",t2n,"| series:",m.series);
 
       // No quality filter — show all matches returned by CricAPI
 
