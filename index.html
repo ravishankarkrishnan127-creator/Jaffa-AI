@@ -2160,11 +2160,16 @@ function renderScorecard(){
     </div>`;
   }
   const inn=(data)=>{
-    const batRows=data.rows.map(r=>"<tr><td><span class=sc-bname>"+r.n+"</span>"+(r.no?"<span class=sc-notout>not out</span>":"<span class=sc-dismiss>"+r.d+"</span>")+"</td><td><b>"+r.r+"</b></td><td style='color:#555'>"+r.b+"</td><td>"+r.f+"</td><td>"+r.s+"</td></tr>").join("");
-    const bowlRows=data.bowl.map(b=>"<tr><td>"+b.n+"</td><td>"+b.o+"</td><td>"+b.r+"</td><td><b>"+b.w+"</b></td><td style='color:#555'>"+b.eco+"</td></tr>").join("");
+    if(!data) return "";
+    if(data._noData){
+      return "<div class=sc-inn><div class=sc-inn-hdr><span class=sc-inn-team>"+data.team+" Innings</span><span class=sc-inn-total>"+data.total+(data.overs?" ("+data.overs+")":"")+"</span></div>"+
+        "<div style='padding:16px;color:#556;font-size:13px;text-align:center'>📋 Detailed scorecard unavailable — CricAPI window expired for this match.<br><span style='font-size:11px'>Full scorecard on ESPNCricinfo.</span></div></div>";
+    }
+    const batRows=(data.rows||[]).map(r=>"<tr><td><span class=sc-bname>"+r.n+"</span>"+(r.no?"<span class=sc-notout>not out</span>":"<span class=sc-dismiss>"+r.d+"</span>")+"</td><td><b>"+r.r+"</b></td><td style='color:#555'>"+r.b+"</td><td>"+r.f+"</td><td>"+r.s+"</td></tr>").join("");
+    const bowlRows=(data.bowl||[]).map(b=>"<tr><td>"+b.n+"</td><td>"+b.o+"</td><td>"+b.r+"</td><td><b>"+b.w+"</b></td><td style='color:#555'>"+b.eco+"</td></tr>").join("");
     return "<div class=sc-inn><div class=sc-inn-hdr><span class=sc-inn-team>"+data.team+" Innings</span><span class=sc-inn-total>"+data.total+" ("+data.overs+")</span></div><table class=sc-tbl><thead><tr><th>BATTER</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead><tbody>"+batRows+"</tbody></table><div class=sc-sep>Bowling</div><table class=sc-tbl><thead><tr><th>BOWLER</th><th>O</th><th>R</th><th>W</th><th>ECO</th></tr></thead><tbody>"+bowlRows+"</tbody></table></div>";
   };
-  return inn(d.bat1)+inn(d.bat2);
+  return (inn(d.bat1)||"")+(inn(d.bat2)||"");
 }
 
 // ── TOAST HELPER ──
@@ -2899,9 +2904,10 @@ async function _autoFetchMatchDetails(label, apiId){
     const r=await fetch(_cricketURL("matchScorecard",{id:apiId}));
     if(!r.ok) throw new Error("HTTP "+r.status);
     const json=await r.json();
-    if(json.status!=="success"||!json.data) throw new Error("No data");
+    if(json.status!=="success"||!json.data) throw new Error(json.status||"No data");
     const sc=json.data;
     const innings=sc.scorecard||[];
+    if(innings.length===0) throw new Error("Empty scorecard");
     const built={result:sc.status||"",bbb:[],bat1:null,bat2:null,t1:{score:"",wkts:"",overs:"",win:false},t2:{score:"",wkts:"",overs:"",win:false},
       _matchType:sc.matchType||sc.matchFormat||sc.matchDesc||""};
 
@@ -3008,10 +3014,36 @@ async function _autoFetchMatchDetails(label, apiId){
     if(detPlaying) return;
     setTimeout(()=>startComm("dramatic",document.getElementById("ssBtnDramatic")),400);
   }catch(e){
-    console.warn("Auto-fetch scorecard failed:",e);
-    // For live matches: fall back to ESPN-based scorecard instead of showing error
-    if(_liveState.active) renderDetBody();
-    else document.getElementById("detBody").innerHTML="<div style='padding:40px;text-align:center;color:#888'>📡 Scorecard not available for this match.</div>";
+    console.warn("Auto-fetch scorecard failed:",e.message);
+    _showToast("📡 Scorecard API: "+e.message,4000);
+    if(_liveState.active){ renderDetBody(); return; }
+    // Build a minimal matchDetails from hardcoded matchData scores so the scorecard tab
+    // and BBB tab show something meaningful even when matchScorecard endpoint fails.
+    const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
+    const m=all.find(x=>x.label===label);
+    if(m){
+      const t1wins=!!(m.team1.winner);
+      const t2wins=!!(m.team2.winner);
+      const built={
+        result:m.result||m.status||"",
+        bbb:[{over:"Match",type:"FOUR",
+          text:(m.result||"Match completed."),
+          dramatic:(m.result||"Match completed.")+" Jaffa AI pe aur updates ke liye dekhte rahiye!",
+          funny:(m.result||"Match completed.")+" Kya match tha yaar — waqt nahi tha boring hone ka!",
+          analytical:(m.result||"Match completed.")+" Scorecard API window expire ho gayi. CricAPI sirf recent matches store karta hai.",
+          score:m.team1.name+" "+(m.team1.score||"")+(m.team1.wkts?" for "+m.team1.wkts:"")+" · "+m.team2.name+" "+(m.team2.score||"")+(m.team2.wkts?" for "+m.team2.wkts:"")}],
+        t1:{score:m.team1.score||"",wkts:m.team1.wkts||"",overs:m.team1.overs||"",win:t1wins},
+        t2:{score:m.team2.score||"",wkts:m.team2.wkts||"",overs:m.team2.overs||"",win:t2wins},
+        bat1:{team:m.team1.name,total:(m.team1.score||"?")+(m.team1.wkts?"/"+m.team1.wkts:""),overs:m.team1.overs||"",
+          rows:[],bowl:[],_noData:true},
+        bat2:{team:m.team2.name,total:(m.team2.score||"?")+(m.team2.wkts?"/"+m.team2.wkts:""),overs:m.team2.overs||"",
+          rows:[],bowl:[],_noData:true}
+      };
+      matchDetails[label]=built;
+      renderDetBody();
+    } else {
+      document.getElementById("detBody").innerHTML="<div style='padding:40px;text-align:center;color:#888'>📡 Scorecard not available (API window expired).</div>";
+    }
   }
 }
 
