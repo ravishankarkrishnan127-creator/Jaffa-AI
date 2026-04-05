@@ -1836,6 +1836,23 @@ function openMatchDetail(label){
   } else if(!d&&m&&m.apiId){
     // Completed match, no hardcoded data — auto-fetch scorecard from API
     _autoFetchMatchDetails(label, m.apiId);
+  } else if(!d&&m&&m.badge==="completed"&&!m.apiId){
+    // Completed match, apiId not yet assigned by CricAPI (timing race on first page load).
+    // Show loading state and poll every 1s for up to 12s until apiId arrives.
+    document.getElementById("detBody").innerHTML=
+      "<div style='padding:40px;text-align:center;color:#888'>⏳ Loading match data…</div>";
+    let _waitCount=0;
+    const _waitId=setInterval(()=>{
+      _waitCount++;
+      if(m.apiId){
+        clearInterval(_waitId);
+        _autoFetchMatchDetails(label,m.apiId);
+      } else if(_waitCount>=12){
+        clearInterval(_waitId);
+        document.getElementById("detBody").innerHTML=
+          "<div style='padding:40px;text-align:center;color:#666'>⚠️ Match data unavailable. The API hasn't indexed this match yet — try again in a minute.</div>";
+      }
+    },1000);
   }
 }
 
@@ -3088,7 +3105,10 @@ async function _fetchCricapiScores(){
       if(!isFranchise&&intlCount<2&&!isWomens) return; // reject: only purely domestic non-franchise matches
 
       // Find existing entry by team name match (preserves label so BBB still works)
-      const existing=all.find(e=>_namesMatch(t1n,e.team1.name)&&_namesMatch(t2n,e.team2.name));
+      // Also check reversed order — CricAPI sometimes flips team1/team2 vs our hardcoded order
+      const existing=all.find(e=>
+        (_namesMatch(t1n,e.team1.name)&&_namesMatch(t2n,e.team2.name))||
+        (_namesMatch(t1n,e.team2.name)&&_namesMatch(t2n,e.team1.name)));
 
       if(existing){
         existing.apiId=m.id;
