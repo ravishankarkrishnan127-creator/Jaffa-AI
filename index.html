@@ -1686,12 +1686,25 @@ async function _fetchCambTTS(text,voiceIdx){
 
 // ── UNIFIED TTS: Camb AI primary → Gemini AI Studio backup ──
 // Device/browser voices are NEVER used.
+// Convert cricket score notation to natural spoken form before TTS.
+// "156/9" → "156 for 9"   "156/10" → "156 all out"   "45/0" → "45 for no loss"
+function _spokenScore(text){
+  return text.replace(/\b(\d+)\/(\d+)\b/g,(match,runs,wkts)=>{
+    const w=parseInt(wkts);
+    if(w===10) return runs+" all out";
+    if(w===0)  return runs+" for no loss";
+    return runs+" for "+w;
+  });
+}
+
 async function _fetchTTS(text,voiceIdx){
+  // Sanitise score notation so TTS doesn't say "156 slash 9"
+  const spoken=_spokenScore(text);
   // PRIMARY: Camb AI (Brad=1 / Jake=0)
-  try{ return await _fetchCambTTS(text,voiceIdx); }
+  try{ return await _fetchCambTTS(spoken,voiceIdx); }
   catch(e){ console.warn("Camb AI TTS failed, trying Gemini:",e.message); }
   // BACKUP: Google AI Studio (Fenrir=1 / Puck=0)
-  try{ return await _fetchGeminiTTS(text,voiceIdx); }
+  try{ return await _fetchGeminiTTS(spoken,voiceIdx); }
   catch(e2){ console.warn("Gemini TTS also failed:",e2.message); }
   throw new Error("All TTS providers failed");
 }
@@ -1837,22 +1850,45 @@ function openMatchDetail(label){
     // Completed match, no hardcoded data — auto-fetch scorecard from API
     _autoFetchMatchDetails(label, m.apiId);
   } else if(!d&&m&&m.badge==="completed"&&!m.apiId){
-    // Completed match, apiId not yet assigned by CricAPI (timing race on first page load).
-    // Show loading state and poll every 1s for up to 12s until apiId arrives.
-    document.getElementById("detBody").innerHTML=
-      "<div style='padding:40px;text-align:center;color:#888'>⏳ Loading match data…</div>";
-    let _waitCount=0;
-    const _waitId=setInterval(()=>{
-      _waitCount++;
-      if(m.apiId){
-        clearInterval(_waitId);
-        _autoFetchMatchDetails(label,m.apiId);
-      } else if(_waitCount>=12){
-        clearInterval(_waitId);
-        document.getElementById("detBody").innerHTML=
-          "<div style='padding:40px;text-align:center;color:#666'>⚠️ Match data unavailable. The API hasn't indexed this match yet — try again in a minute.</div>";
-      }
-    },1000);
+    // Completed match, apiId not yet assigned — search CricAPI directly (don't wait for poll cycle)
+    _searchAndFetchMatchDetails(label, m);
+  }
+}
+
+// Directly search CricAPI for a completed match's apiId so the scorecard can be loaded immediately.
+// Called when a user opens a completed match before the background poll has assigned its apiId.
+async function _searchAndFetchMatchDetails(label, m){
+  const body=document.getElementById("detBody");
+  if(body) body.innerHTML="<div style='padding:40px;text-align:center;color:#888'>⏳ Loading match data…</div>";
+  try{
+    // Search both offsets in parallel — uses 2 API calls but only on explicit user action
+    const [r0,r25]=await Promise.all([
+      fetch(_cricketURL("currentMatches",{offset:0})),
+      fetch(_cricketURL("currentMatches",{offset:25}))
+    ]);
+    const [d0,d25]=await Promise.all([r0.json(),r25.json()]);
+    const candidates=[...(d0.data||[]),...(d25.data||[])];
+    // Match by team name (handles full names, abbrev, and reversed order)
+    const mt1=m.team1.name.toLowerCase(), mt2=m.team2.name.toLowerCase();
+    function _nm(a,b){ return a.includes(b)||b.includes(a); }
+    const found=candidates.find(c=>{
+      if(!c.teams||c.teams.length<2) return false;
+      const t0=c.teams[0].toLowerCase(), t1=c.teams[1].toLowerCase();
+      return (_nm(t0,mt1)&&_nm(t1,mt2))||(_nm(t0,mt2)&&_nm(t1,mt1));
+    });
+    if(found){
+      m.apiId=found.id; // persist for future opens
+      _autoFetchMatchDetails(label,found.id);
+    } else {
+      // Match not in CricAPI window — build scorecard from matchData hardcoded scores + show basic info
+      if(body) body.innerHTML="<div style='padding:40px;text-align:center;color:#666'>📋 Full scorecard unavailable for this match (API window expired). Scores: "+
+        m.team1.name+" "+m.team1.score+(m.team1.wkts?"/"+m.team1.wkts:"")+" · "+
+        m.team2.name+" "+m.team2.score+(m.team2.wkts?"/"+m.team2.wkts:"")+"<br><br>"+
+        "<span style='color:#888;font-size:12px'>CricAPI only stores recent matches. Check ESPN Cricinfo for the full scorecard.</span></div>";
+    }
+  }catch(e){
+    console.warn("_searchAndFetchMatchDetails failed:",e);
+    if(body) body.innerHTML="<div style='padding:40px;text-align:center;color:#666'>⚠️ Could not load match data. Check your connection.</div>";
   }
 }
 
