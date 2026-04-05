@@ -3046,20 +3046,31 @@ async function _fetchCricapiScores(){
     const m0=(d0.status==="success"&&Array.isArray(d0.data))?d0.data:[];
     const m25=(d25.status==="success"&&Array.isArray(d25.data))?d25.data:[];
     // Remember which offset has franchise league matches
-    const FRANCHISE_CHECK=["ipl","psl","bbl","cpl","sa20"];
-    const has0=m0.some(m=>FRANCHISE_CHECK.some(l=>(m.name||"").toLowerCase().includes(l)||(m.series||"").toLowerCase().includes(l)));
-    const has25=m25.some(m=>FRANCHISE_CHECK.some(l=>(m.name||"").toLowerCase().includes(l)||(m.series||"").toLowerCase().includes(l)));
+    // Use both short ("ipl") and long ("indian premier league") forms + team name fallback
+    const FRANCHISE_CHECK=["ipl","indian premier league","premier league","psl","bbl","cpl","sa20","ilt20","mlc","wpl"];
+    const IPL_TEAM_CHECK=["royal challengers","chennai super kings","mumbai indians","kolkata knight riders","sunrisers","rajasthan royals","delhi capitals","punjab kings","gujarat titans","lucknow super giants"];
+    const _hasFranchise=arr=>arr.some(m=>{
+      const s=((m.name||"")+" "+(m.series||"")).toLowerCase();
+      const t=((m.teams||[]).join(" ")).toLowerCase();
+      return FRANCHISE_CHECK.some(l=>s.includes(l))||IPL_TEAM_CHECK.some(l=>t.includes(l));
+    });
+    const has0=_hasFranchise(m0), has25=_hasFranchise(m25);
     _cricapiOffset=has25?25:(has0?0:25); // default 25 if neither has franchise
     allMatches=[...m0,...m25];
   } else {
     // Ongoing polls: single offset call
-    // Every 10th poll, also check the other offset to catch newly started series
-    const offsetToUse=(_cricapiPollCount%10===0)?(_cricapiOffset===25?0:25):_cricapiOffset;
+    // Every 3rd poll, also check the other offset to catch matches that have shifted position
+    const offsetToUse=(_cricapiPollCount%3===0)?(_cricapiOffset===25?0:25):_cricapiOffset;
     const r=await fetch(_cricketURL("currentMatches",{offset:offsetToUse}));
     const d=await r.json();
     allMatches=(d.status==="success"&&Array.isArray(d.data))?d.data:[];
-    const FRANCHISE_CHECK=["ipl","psl","bbl","cpl","sa20"];
-    if(allMatches.some(m=>FRANCHISE_CHECK.some(l=>(m.name||"").toLowerCase().includes(l)))) _cricapiOffset=offsetToUse;
+    const FRANCHISE_CHECK2=["ipl","indian premier league","premier league","psl","bbl","cpl","sa20","ilt20","mlc","wpl"];
+    const IPL_TEAM_CHECK2=["royal challengers","chennai super kings","mumbai indians","kolkata knight riders","sunrisers","rajasthan royals","delhi capitals","punjab kings","gujarat titans","lucknow super giants"];
+    if(allMatches.some(m=>{
+      const s=((m.name||"")+" "+(m.series||"")).toLowerCase();
+      const t=((m.teams||[]).join(" ")).toLowerCase();
+      return FRANCHISE_CHECK2.some(l=>s.includes(l))||IPL_TEAM_CHECK2.some(l=>t.includes(l));
+    })) _cricapiOffset=offsetToUse;
   }
 
   if(!allMatches.length) return;
@@ -3095,14 +3106,7 @@ async function _fetchCricapiScores(){
       const seriesStr=((m.name||"")+" "+(m.series||"")).toLowerCase();
       const teamsStr=(t1n+" "+t2n).toLowerCase();
 
-      // GUARDRAIL: Quality filter — franchise leagues OR ≥2 major international teams
-      const FRANCHISE_LEAGUES=["ipl","psl","bbl","cpl","sa20","ilt20","mlc","wpl","wipl","t20 blast","the hundred","vitality blast","big bash"];
-      const INTL_TEAMS=["india","pakistan","australia","england","new zealand","south africa","west indies","sri lanka","bangladesh","afghanistan","zimbabwe","ireland","scotland","netherlands","namibia","uae","oman","png","usa","canada","kenya"];
-      const isFranchise=FRANCHISE_LEAGUES.some(l=>seriesStr.includes(l));
-      const intlCount=INTL_TEAMS.filter(t=>teamsStr.includes(t)).length;
-      const isWomens=seriesStr.includes("women")||teamsStr.includes("women")||(m.name||"").includes("-W");
-      // Accept: franchise leagues, international (≥2 national teams), any women's cricket, any associate cricket
-      if(!isFranchise&&intlCount<2&&!isWomens) return; // reject: only purely domestic non-franchise matches
+      // No quality filter — show all matches returned by CricAPI
 
       // Find existing entry by team name match (preserves label so BBB still works)
       // Also check reversed order — CricAPI sometimes flips team1/team2 vs our hardcoded order
