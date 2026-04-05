@@ -2298,6 +2298,7 @@ let _liveState={
 };
 let _ambientNode=null;
 let _pollActive=false; // guard: prevent two concurrent polls
+const _invalidApiIds=new Set(); // CricAPI IDs that returned "Invalid API request" — never retry
 let _ballTimers=[]; // staggered virtual-delivery timers
 
 // ── SPLIT ESPN SCORE DELTA INTO VIRTUAL DELIVERIES ───────────────────────
@@ -2435,8 +2436,21 @@ async function _pollLiveCommentary(){
     let t1runs=null,t1wkts=null,t1overs=null,t2runs=null,t2wkts=null,t2overs=null;
 
     if(_liveState.apiId){
+      // Skip if this ID was previously flagged as invalid — saves API calls
+      if(_invalidApiIds.has(_liveState.apiId)){
+        _liveState.apiId=null; // fall through to ESPN mode
+      }
+    }
+    if(_liveState.apiId){
       const r=await fetch(_cricketURL("match",{id:_liveState.apiId}));
       const json=await r.json();
+      // Detect "Invalid API request" — blacklist this ID so we never call it again
+      if(json.status==="failure"||(typeof json.status==="string"&&json.status.toLowerCase().includes("invalid"))){
+        console.warn("CricAPI: invalid match ID, blacklisting:",_liveState.apiId);
+        _invalidApiIds.add(_liveState.apiId);
+        _liveState.apiId=null; // fall through to ESPN mode on next poll
+        throw new Error("invalid match id — falling back to ESPN");
+      }
       if(json.status!=="success"||!json.data) throw new Error("cricapi no data");
       const md=json.data;
       const scores=md.score||[];
@@ -2594,9 +2608,13 @@ function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
 // ── GET LATEST REAL BALL from CricAPI match_bbb ─────────────────────────────
 // Returns the newest unseen ball, or null if unavailable / no new ball
 async function _getLatestBall(apiId){
+  if(_invalidApiIds.has(apiId)) return null; // don't retry blacklisted IDs
   const r=await fetch(_cricketURL("match_bbb",{id:apiId}));
   if(!r.ok) return null;
   const json=await r.json();
+  if(json.status==="failure"||(typeof json.status==="string"&&json.status.toLowerCase().includes("invalid"))){
+    _invalidApiIds.add(apiId); return null;
+  }
   if(json.status!=="success"||!Array.isArray(json.data?.bbb)||!json.data.bbb.length) return null;
   const balls=json.data.bbb;
   // Detect new balls since last seen
@@ -2660,6 +2678,7 @@ function _buildRealBallEvent(ball,runs,wkts,overs){
 // ── PRELOAD LIVE BBB — fetches recent deliveries when user opens a live match ─
 // Solves "BBB empty on open" — shows last 20 actual deliveries immediately
 async function _preloadLiveBBB(apiId){
+  if(_invalidApiIds.has(apiId)) return;
   try{
     const r=await fetch(_cricketURL("match_bbb",{id:apiId}));
     if(!r.ok) return;
@@ -2987,23 +3006,28 @@ function _teamFlag(name){
 }
 
 // ── CRICAPI SCORES — internal helper ──
-// Fetches TWO pages: offset=0 (non-IPL) + offset=25 (IPL 2026 matches)
+// ONE call per poll to preserve the 1000/day budget.
+// We alternate offsets: offset=0 first, offset=25 if no franchise league found.
+// _cricapiOffset remembers which offset found IPL last time — avoids wasting calls.
+let _cricapiOffset=0; // starts at 0; set to 25 if IPL found only at 25
+let _cricapiPollCount=0;
 async function _fetchCricapiScores(){
-  // Fetch both offsets in parallel — IPL matches appear at offset=25
-  const [r0, r25] = await Promise.all([
-    fetch(_cricketURL("currentMatches",{offset:0})),
-    fetch(_cricketURL("currentMatches",{offset:25}))
-  ]);
-  const [d0, d25] = await Promise.all([r0.json(), r25.json()]);
-  // Merge both pages; skip any that failed
-  const matches0  = (d0.status==="success"  && Array.isArray(d0.data))  ? d0.data  : [];
-  const matches25 = (d25.status==="success" && Array.isArray(d25.data)) ? d25.data : [];
-  const allMatches = [...matches0, ...matches25];
-  if(!allMatches.length) return;
+  if(document.visibilityState==="hidden") return; // don't waste calls when tab is in background
+  _cricapiPollCount++;
+  // Every 5th poll, check the OTHER offset to catch newly started matches
+  const offsetToUse = (_cricapiPollCount%5===0) ? (_cricapiOffset===0?25:0) : _cricapiOffset;
+  const r = await fetch(_cricketURL("currentMatches",{offset:offsetToUse}));
+  const d = await r.json();
+  const matches = (d.status==="success" && Array.isArray(d.data)) ? d.data : [];
+  if(!matches.length) return;
 
-  // Deduplicate by match id (in case of overlap)
+  // If this offset has franchise matches, remember it for next time
+  const FRANCHISE_CHECK=["ipl","psl","bbl","cpl","sa20"];
+  const hasFranchise=matches.some(m=>FRANCHISE_CHECK.some(l=>(m.name||"").toLowerCase().includes(l)||(m.series||"").toLowerCase().includes(l)));
+  if(hasFranchise) _cricapiOffset=offsetToUse;
+
   const seen=new Set();
-  const data={data: allMatches.filter(m=>{ if(seen.has(m.id)) return false; seen.add(m.id); return true; })};
+  const data={data: matches.filter(m=>{ if(seen.has(m.id)) return false; seen.add(m.id); return true; })};
 
     const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
     let changed=false;
@@ -3277,9 +3301,26 @@ async function fetchEspnLiveEnrichment(){
   }
 }
 
-// Fetch on load, then every 30 seconds for live match responsiveness
-fetchLiveScores();
-setInterval(fetchLiveScores,30000);
+// ── SMART POLL INTERVAL ─────────────────────────────────────────────────────
+// Budget: 1000 calls/day. ONE CricAPI call per poll.
+// Background (no live match open):  every 3 minutes  = 480 calls/day max
+// When detail screen open (live):   every 90 seconds = up to 960/day but
+//   only fires while tab is visible (page visibility guard inside _fetchCricapiScores)
+// ESPN Cricinfo runs in parallel but doesn't count against CricAPI budget.
+let _pollIntervalId=null;
+function _startSmartPolling(){
+  if(_pollIntervalId) clearInterval(_pollIntervalId);
+  const isDetailOpen=!document.getElementById("matchDetailScreen").classList.contains("slide-in");
+  const interval=isDetailOpen?90000:180000; // 90s watching a match, 3min on list
+  _pollIntervalId=setInterval(fetchLiveScores, interval);
+}
+fetchLiveScores();      // immediate first load
+_startSmartPolling();   // then schedule repeating
+
+// Restart polling with tighter interval when user opens/closes match detail
+document.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("matchDetailScreen").addEventListener("transitionend",_startSmartPolling);
+});
 
 </script>
 </body>
