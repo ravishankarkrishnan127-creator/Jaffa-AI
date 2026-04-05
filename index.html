@@ -307,28 +307,12 @@ body{background:#1a1a2e;font-family:"Segoe UI",system-ui,sans-serif;display:flex
 const LOGIN_KEY = "jaffa_user_phone";
 let errorTimer = null, logoutOpen = false, currentTab = "live";
 
-// ── REAL DATA (updated 4 Apr 2026) ──
+// ── REAL DATA (updated 5 Apr 2026) ──
 const matchData = {
   live: [],
   upcoming: [
     {
-      label:"IPL 2026 · 8th Match", badge:"upcoming",
-      team1:{flag:"🔵",name:"DC",score:"",wkts:"",overs:""},
-      team2:{flag:"🔵",name:"MI",score:"",wkts:"",overs:""},
-      status:"<span style='color:#ff9f40'>🕖 Today · 3:30 PM IST</span>",
-      extra:"📍 Arun Jaitley Stadium, Delhi · Apr 4, 2026",
-      result:"", listen:false
-    },
-    {
-      label:"IPL 2026 · 9th Match", badge:"upcoming",
-      team1:{flag:"🟠",name:"SRH",score:"",wkts:"",overs:""},
-      team2:{flag:"🟡",name:"LSG",score:"",wkts:"",overs:""},
-      status:"<span style='color:#ff9f40'>🕖 Apr 5 · 3:30 PM IST</span>",
-      extra:"📍 Rajiv Gandhi International Cricket Stadium, Hyderabad · Apr 5, 2026",
-      result:"", listen:false
-    },
-    {
-      label:"IPL 2026 · 10th Match", badge:"upcoming",
+      label:"IPL 2026 · 11th Match", badge:"upcoming",
       team1:{flag:"🔴",name:"RCB",score:"",wkts:"",overs:""},
       team2:{flag:"🟡",name:"CSK",score:"",wkts:"",overs:""},
       status:"<span style='color:#ff9f40'>🕖 Apr 5 · 7:30 PM IST</span>",
@@ -336,7 +320,7 @@ const matchData = {
       result:"", listen:false
     },
     {
-      label:"IPL 2026 · 11th Match", badge:"upcoming",
+      label:"IPL 2026 · 12th Match", badge:"upcoming",
       team1:{flag:"💜",name:"KKR",score:"",wkts:"",overs:""},
       team2:{flag:"🔴",name:"PBKS",score:"",wkts:"",overs:""},
       status:"<span style='color:#ff9f40'>🕖 Apr 6 · 7:30 PM IST</span>",
@@ -344,7 +328,7 @@ const matchData = {
       result:"", listen:false
     },
     {
-      label:"IPL 2026 · 12th Match", badge:"upcoming",
+      label:"IPL 2026 · 13th Match", badge:"upcoming",
       team1:{flag:"🩷",name:"RR",score:"",wkts:"",overs:""},
       team2:{flag:"🔵",name:"MI",score:"",wkts:"",overs:""},
       status:"<span style='color:#ff9f40'>🕖 Apr 7 · 7:30 PM IST</span>",
@@ -353,6 +337,30 @@ const matchData = {
     }
   ],
   completed: [
+    {
+      label:"IPL 2026 · 10th Match", badge:"completed",
+      team1:{flag:"🟠",name:"SRH",score:"156",wkts:"9",overs:"20.0 ov"},
+      team2:{flag:"🟡",name:"LSG",score:"157",wkts:"5",overs:"19.5 ov",winner:true},
+      status:"<span class=hl-g>Lucknow Super Giants won by 5 wickets</span>",
+      extra:"📍 Rajiv Gandhi International Cricket Stadium, Hyderabad · Apr 5, 2026",
+      result:"✅ LSG won by 5 wkts (Pant 53*)", listen:false
+    },
+    {
+      label:"IPL 2026 · 9th Match", badge:"completed",
+      team1:{flag:"🩷",name:"RR",score:"210",wkts:"6",overs:"20.0 ov",winner:true},
+      team2:{flag:"🔵",name:"GT",score:"204",wkts:"8",overs:"20.0 ov"},
+      status:"<span class=hl-g>Rajasthan Royals won by 6 runs</span>",
+      extra:"📍 Narendra Modi Stadium, Ahmedabad · Apr 4, 2026",
+      result:"✅ RR won by 6 runs", listen:false
+    },
+    {
+      label:"IPL 2026 · 8th Match", badge:"completed",
+      team1:{flag:"🔵",name:"DC",score:"164",wkts:"4",overs:"18.1 ov",winner:true},
+      team2:{flag:"🔵",name:"MI",score:"162",wkts:"6",overs:"20.0 ov"},
+      status:"<span class=hl-g>Delhi Capitals won by 6 wickets</span>",
+      extra:"📍 Arun Jaitley Stadium, Delhi · Apr 4, 2026",
+      result:"✅ DC won by 6 wkts (Rizvi 90)", listen:false
+    },
     {
       label:"IPL 2026 · 7th Match", badge:"completed",
       team1:{flag:"🟡",name:"CSK",score:"209",wkts:"5",overs:"20.0 ov"},
@@ -3350,6 +3358,25 @@ function _startSmartPolling(){
   const interval=isDetailOpen?90000:180000; // 90s watching a match, 3min on list
   _pollIntervalId=setInterval(fetchLiveScores, interval);
 }
+// ── STARTUP: expire any hardcoded upcoming match whose date has passed ──
+// Prevents matches like "DC vs MI · Apr 4" from staying stuck in the upcoming list.
+(function _expirePastUpcomingMatches(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const M={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  matchData.upcoming=matchData.upcoming.filter(m=>{
+    const dm=(m.extra||"").match(/·\s*([A-Z][a-z]{2})\s+(\d+),\s*(\d{4})/);
+    if(!dm) return true;
+    const d=new Date(parseInt(dm[3]),M[dm[1]],parseInt(dm[2]));
+    if(d<today){
+      m.badge="completed";
+      m.result=m.result||"✅ Match completed";
+      if(!matchData.completed.find(x=>x.label===m.label)) matchData.completed.unshift(m);
+      return false;
+    }
+    return true;
+  });
+})();
+
 fetchLiveScores();      // immediate first load
 _startSmartPolling();   // then schedule repeating
 
