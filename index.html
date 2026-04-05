@@ -3079,6 +3079,10 @@ async function _fetchCricapiScores(){
       fetch(_cricketURL("currentMatches",{offset:25}))
     ]);
     const [d0,d25]=await Promise.all([r0.json(),r25.json()]);
+    // DEBUG: log raw API response status
+    console.log("CricAPI offset=0 status:",d0.status,"count:",d0.data?.length,"msg:",d0.message||d0.reason||"");
+    console.log("CricAPI offset=25 status:",d25.status,"count:",d25.data?.length,"msg:",d25.message||d25.reason||"");
+    if(d0.status!=="success"||d25.status!=="success") _showToast("CricAPI error: "+JSON.stringify({s0:d0.status,s25:d25.status,m:d0.message||d0.reason||d25.message||d25.reason}),10000);
     const m0=(d0.status==="success"&&Array.isArray(d0.data))?d0.data:[];
     const m25=(d25.status==="success"&&Array.isArray(d25.data))?d25.data:[];
     // Remember which offset has franchise league matches
@@ -3109,7 +3113,15 @@ async function _fetchCricapiScores(){
     })) _cricapiOffset=offsetToUse;
   }
 
-  if(!allMatches.length) return;
+  // DEBUG — shows status on screen so you don't need DevTools
+  const _liveCount=allMatches.filter(m=>m.matchStarted&&!m.matchEnded).length;
+  _showToast("CricAPI #"+_cricapiPollCount+": "+allMatches.length+" matches, "+_liveCount+" live", 6000);
+  console.log("🏏 CricAPI poll #"+_cricapiPollCount+": "+allMatches.length+" total, "+_liveCount+" live");
+  allMatches.forEach(m=>console.log(" "+(m.matchStarted&&!m.matchEnded?"🔴":"⚪"),m.teams?.join(" vs "),"|",m.name,"|",m.series||"(no series)","| started="+m.matchStarted,"ended="+m.matchEnded));
+  if(!allMatches.length){
+    _showToast("⚠️ CricAPI: 0 matches — check CRICKET_KEY in Cloudflare", 8000);
+    return;
+  }
   const seen=new Set();
   const data={data:allMatches.filter(m=>{ if(seen.has(m.id)) return false; seen.add(m.id); return true; })};
 
@@ -3141,6 +3153,8 @@ async function _fetchCricapiScores(){
       const isDone=m.matchEnded;
       const seriesStr=((m.name||"")+" "+(m.series||"")).toLowerCase();
       const teamsStr=(t1n+" "+t2n).toLowerCase();
+      // DEBUG
+      if(isLive) console.log("🔴 LIVE match found:",t1n,"vs",t2n,"| series:",m.series);
 
       // No quality filter — show all matches returned by CricAPI
 
