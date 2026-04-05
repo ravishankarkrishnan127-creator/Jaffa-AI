@@ -2410,6 +2410,30 @@ function _startLiveCommentary(matchObj, style){
       '<div id="liveWaiting" style="padding:24px;text-align:center;color:#888;font-size:14px">🔴 Connecting to live feed…</div>';
   }
   _startAmbientCrowd();
+
+  // Immediately show current known score as a status entry (no blank BBB on open)
+  try{
+    const feed=document.getElementById("liveFeed");
+    if(feed){
+      const t1s=matchObj.team1.score,t1w=matchObj.team1.wkts,t1o=matchObj.team1.overs;
+      const t2s=matchObj.team2.score,t2w=matchObj.team2.wkts,t2o=matchObj.team2.overs;
+      const hasT1=t1s&&parseInt(t1s)>=0, hasT2=t2s&&parseInt(t2s)>=0;
+      if(hasT1||hasT2){
+        const div=document.createElement("div");
+        div.className="bbb-entry done";
+        div.style.cssText="opacity:0.7;border-left:3px solid #1e3a5f;background:#07101a;margin-bottom:4px";
+        div.innerHTML="<div class='bbb-meta'><span class='bbb-badge NORMAL'>MATCH IN PROGRESS</span></div>"
+          +"<div class='bbb-text'>"
+          +(hasT1?matchObj.team1.name+" "+t1s+" for "+t1w+" ("+t1o+")":(matchObj.team1.name+" yet to bat"))
+          +" &nbsp;·&nbsp; "
+          +(hasT2?matchObj.team2.name+" "+t2s+" for "+t2w+" ("+t2o+")":(matchObj.team2.name+" yet to bat"))
+          +"</div>"
+          +"<div class='bbb-jaffa' style='opacity:0.6'>🎙️ Match chal raha hai — ball-by-ball updates aa rahe hain…</div>";
+        feed.appendChild(div);
+      }
+    }
+  }catch(e){}
+
   if(matchObj.apiId) _preloadLiveBBB(matchObj.apiId); // async — renders past deliveries immediately
   _pollLiveCommentary();
 }
@@ -3022,25 +3046,43 @@ function _teamFlag(name){
 // ONE call per poll to preserve the 1000/day budget.
 // We alternate offsets: offset=0 first, offset=25 if no franchise league found.
 // _cricapiOffset remembers which offset found IPL last time — avoids wasting calls.
-let _cricapiOffset=0; // starts at 0; set to 25 if IPL found only at 25
+let _cricapiOffset=25; // IPL 2026 is at offset=25; will auto-correct if found at 0
 let _cricapiPollCount=0;
 async function _fetchCricapiScores(){
   if(document.visibilityState==="hidden") return; // don't waste calls when tab is in background
   _cricapiPollCount++;
-  // Every 5th poll, check the OTHER offset to catch newly started matches
-  const offsetToUse = (_cricapiPollCount%5===0) ? (_cricapiOffset===0?25:0) : _cricapiOffset;
-  const r = await fetch(_cricketURL("currentMatches",{offset:offsetToUse}));
-  const d = await r.json();
-  const matches = (d.status==="success" && Array.isArray(d.data)) ? d.data : [];
-  if(!matches.length) return;
 
-  // If this offset has franchise matches, remember it for next time
-  const FRANCHISE_CHECK=["ipl","psl","bbl","cpl","sa20"];
-  const hasFranchise=matches.some(m=>FRANCHISE_CHECK.some(l=>(m.name||"").toLowerCase().includes(l)||(m.series||"").toLowerCase().includes(l)));
-  if(hasFranchise) _cricapiOffset=offsetToUse;
+  // On the very first poll, fetch BOTH offsets so we don't miss IPL
+  // After that, single call to save budget
+  let allMatches=[];
+  if(_cricapiPollCount===1){
+    const [r0,r25]=await Promise.all([
+      fetch(_cricketURL("currentMatches",{offset:0})),
+      fetch(_cricketURL("currentMatches",{offset:25}))
+    ]);
+    const [d0,d25]=await Promise.all([r0.json(),r25.json()]);
+    const m0=(d0.status==="success"&&Array.isArray(d0.data))?d0.data:[];
+    const m25=(d25.status==="success"&&Array.isArray(d25.data))?d25.data:[];
+    // Remember which offset has franchise league matches
+    const FRANCHISE_CHECK=["ipl","psl","bbl","cpl","sa20"];
+    const has0=m0.some(m=>FRANCHISE_CHECK.some(l=>(m.name||"").toLowerCase().includes(l)||(m.series||"").toLowerCase().includes(l)));
+    const has25=m25.some(m=>FRANCHISE_CHECK.some(l=>(m.name||"").toLowerCase().includes(l)||(m.series||"").toLowerCase().includes(l)));
+    _cricapiOffset=has25?25:(has0?0:25); // default 25 if neither has franchise
+    allMatches=[...m0,...m25];
+  } else {
+    // Ongoing polls: single offset call
+    // Every 10th poll, also check the other offset to catch newly started series
+    const offsetToUse=(_cricapiPollCount%10===0)?(_cricapiOffset===25?0:25):_cricapiOffset;
+    const r=await fetch(_cricketURL("currentMatches",{offset:offsetToUse}));
+    const d=await r.json();
+    allMatches=(d.status==="success"&&Array.isArray(d.data))?d.data:[];
+    const FRANCHISE_CHECK=["ipl","psl","bbl","cpl","sa20"];
+    if(allMatches.some(m=>FRANCHISE_CHECK.some(l=>(m.name||"").toLowerCase().includes(l)))) _cricapiOffset=offsetToUse;
+  }
 
+  if(!allMatches.length) return;
   const seen=new Set();
-  const data={data: matches.filter(m=>{ if(seen.has(m.id)) return false; seen.add(m.id); return true; })};
+  const data={data:allMatches.filter(m=>{ if(seen.has(m.id)) return false; seen.add(m.id); return true; })};
 
     const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
     let changed=false;
@@ -3077,8 +3119,8 @@ async function _fetchCricapiScores(){
       const isFranchise=FRANCHISE_LEAGUES.some(l=>seriesStr.includes(l));
       const intlCount=INTL_TEAMS.filter(t=>teamsStr.includes(t)).length;
       const isWomens=seriesStr.includes("women")||teamsStr.includes("women")||(m.name||"").includes("-W");
-      // Accept: franchise leagues, international (≥2 national teams), women's cricket
-      if(!isFranchise&&intlCount<2&&!isWomens) return; // reject: domestic/low-quality
+      // Accept: franchise leagues, international (≥2 national teams), any women's cricket, any associate cricket
+      if(!isFranchise&&intlCount<2&&!isWomens) return; // reject: only purely domestic non-franchise matches
 
       // Find existing entry by team name match (preserves label so BBB still works)
       const existing=all.find(e=>_namesMatch(t1n,e.team1.name)&&_namesMatch(t2n,e.team2.name));
