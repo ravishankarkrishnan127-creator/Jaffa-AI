@@ -2482,7 +2482,7 @@ function openMatchDetail(label){
   const m=all.find(x=>x.label===label);
   if(!m)return;
   const d=matchDetails[label];
-  detKey=label;detTab="bbb";detStyle="dramatic";
+  detKey=label;detTab="bbb";detStyle="dramatic";_pausedAt=-1;_pausedStyle="";_introPlayedFor="";
   stopDetailPlay();
   // Populate strip
   document.getElementById("detSeriesLbl").textContent=label;
@@ -2852,21 +2852,22 @@ function _showToast(msg,dur=3000){
 // ── COMMENTARY ──
 let _detGen=0; // generation counter to prevent overlapping async chains
 let _pausedAt=-1, _pausedStyle=""; // saved pause position
+let _introPlayedFor=""; // track which match's intro was already played (skip on mode switch)
 function pauseComm(){
-  if(detPlaying){
-    // Playing → pause: save position, stop, show RESUME
-    _pausedAt=detPlayIdx; _pausedStyle=detStyle;
-    stopDetailPlay(); // hides ssPauseRow, resets button text
-    // Re-show pause row with RESUME so user can tap to resume
-    const pb=document.getElementById("ssBtnPause");
-    if(pb) pb.innerHTML="&#9654;&nbsp;&nbsp;RESUME";
-    const pr=document.getElementById("ssPauseRow");
-    if(pr) pr.style.display="block";
-  } else if(_pausedAt>=0){
-    // Paused → resume: call startComm with saved style
-    const activeBtn=document.querySelector(".ss-style-btn.active");
-    startComm(_pausedStyle, activeBtn);
+  if(!detPlaying) return; // only valid when playing; RESUME has its own handler
+  _pausedAt=detPlayIdx; _pausedStyle=detStyle;
+  stopDetailPlay(); // hides ssPauseRow, resets button to PAUSE text
+  // Override button to show RESUME with its own direct onclick (avoids re-entrant call)
+  const pb=document.getElementById("ssBtnPause");
+  if(pb){
+    pb.innerHTML="&#9654;&nbsp;&nbsp;RESUME";
+    pb.onclick=function(){
+      const ab=document.querySelector(".ss-style-btn.active");
+      startComm(_pausedStyle,ab);
+    };
   }
+  const pr=document.getElementById("ssPauseRow");
+  if(pr) pr.style.display="block";
 }
 function startComm(style, btnEl){
   _unlockAudio(); // MUST be sync in click handler — unlocks AudioContext + Web Speech
@@ -2916,7 +2917,9 @@ function startComm(style, btnEl){
       _enqueueTTS(ck,txt,_vtForType(entry.type,i));
     }
   });
-  if(isCompleted&&!_resuming){
+  // Play intro only first time this match is opened (not on mode-switch or resume)
+  if(isCompleted&&!_resuming&&_introPlayedFor!==detKey){
+    _introPlayedFor=detKey;
     const ick="_hindi_intro_"+detKey;
     if(!_ttsCache[ick]) _fetchTTS("यार, मैच तो खत्म हो गया... lekin ruko! Ab suno is match ke best highlights!",0).then(u=>{_ttsCache[ick]=u;}).catch(()=>{});
     _playHindiIntro(myGen).then(()=>{if(myGen===_detGen&&detPlaying) advancePlay(myGen);});
@@ -3046,7 +3049,7 @@ function stopDetailPlay(){
   const pr2=document.getElementById("ssPauseRow");
   if(pr2) pr2.style.display="none";
   const pb2=document.getElementById("ssBtnPause");
-  if(pb2) pb2.innerHTML="&#9646;&#9646;&nbsp;&nbsp;PAUSE";
+  if(pb2){pb2.innerHTML="&#9646;&#9646;&nbsp;&nbsp;PAUSE";pb2.onclick=pauseComm;}
   document.querySelectorAll(".bbb-item").forEach(el=>el.classList.remove("playing","done"));
 }
 
