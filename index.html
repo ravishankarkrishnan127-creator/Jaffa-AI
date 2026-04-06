@@ -414,16 +414,16 @@ const matchData = {
       team1:{flag:"💜",name:"KKR",score:"220",wkts:"4",overs:"20.0 ov"},
       team2:{flag:"🔵",name:"MI",score:"224",wkts:"4",overs:"19.1 ov",winner:true},
       status:"<span class=hl-g>Mumbai Indians won by 6 wickets</span>",
-      extra:"📍 Eden Gardens, Kolkata · Mar 29, 2026",
+      extra:"📍 Wankhede Stadium, Mumbai · Mar 29, 2026",
       result:"✅ MI won by 6 wkts", listen:false
     },
     {
       label:"IPL 2026 · 1st Match", badge:"completed",
-      team1:{flag:"🔴",name:"RCB",score:"179",wkts:"4",overs:"18.3 ov",winner:true},
-      team2:{flag:"🟠",name:"SRH",score:"175",wkts:"7",overs:"20.0 ov"},
+      team1:{flag:"🔴",name:"RCB",score:"203",wkts:"4",overs:"15.4 ov",winner:true},
+      team2:{flag:"🟠",name:"SRH",score:"201",wkts:"9",overs:"20.0 ov"},
       status:"<span class=hl-g>Royal Challengers Bengaluru won by 6 wickets</span>",
       extra:"📍 M. Chinnaswamy Stadium, Bengaluru · Mar 28, 2026",
-      result:"✅ RCB won by 6 wkts", listen:false
+      result:"✅ RCB won by 6 wkts (26 balls remaining)", listen:false
     },
     {
       label:"AUS Women in WI · 3rd ODI", badge:"completed",
@@ -2813,13 +2813,33 @@ function renderScorecard(){
     const m=all.find(x=>x.label===detKey);
     if(!m) return"<div style='padding:40px;text-align:center;color:#444'>Scorecard loading…</div>";
     const t1=m.team1, t2=m.team2;
-    const row=(t,label)=>t.score?`<div style='display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #1e2b3a'>
-      <span style='font-weight:700;color:#e0e6ef'>${t.flag} ${t.name}</span>
-      <span style='color:#f5c842;font-weight:700'>${t.score}${t.wkts!==undefined&&t.wkts!==''?' for '+t.wkts:''} <span style='color:#888;font-size:12px'>${t.overs||''}</span></span></div>`:'';
+    // Build richer live scorecard with CRR / RRR
+    const r1=parseInt(t1.score)||0, w1=parseInt(t1.wkts)||0;
+    const r2=parseInt(t2.score)||0, w2=parseInt(t2.wkts)||0;
+    const o1=parseFloat(t1.overs)||0, o2=parseFloat(t2.overs)||0;
+    const crr=o2>0?(r2/o2).toFixed(2):(o1>0?(r1/o1).toFixed(2):"—");
+    const battingSecond=t2.score&&o2>0;
+    const needed=battingSecond?Math.max(0,r1-r2+1):0;
+    const ballsLeft=battingSecond?Math.max(0,Math.round((20-o2)*6)):0;
+    const rrr=battingSecond&&ballsLeft>0?((needed/(ballsLeft/6)).toFixed(2)):"—";
+    const innRow=(t,isLive)=>t.score?`<div style='display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #1a2840'>
+      <div><span style='font-size:16px'>${t.flag}</span> <span style='font-weight:700;color:#e0e6ef;font-size:14px'>${t.name}</span>${isLive?"<span style='margin-left:8px;font-size:9px;color:#ff4444;font-weight:700;letter-spacing:1px'>● BATTING</span>":""}</div>
+      <div style='text-align:right'><span style='color:#f5c842;font-weight:800;font-size:18px'>${t.score}/${t.wkts||0}</span> <span style='color:#666;font-size:11px'>(${t.overs})</span></div></div>`:'';
+    const stat=m.status&&typeof m.status==="string"&&!m.status.includes("<")?m.status:"";
+    const rateRow=`<div style='display:flex;gap:0;border-bottom:1px solid #1a2840'>
+      <div style='flex:1;padding:10px 16px;border-right:1px solid #1a2840'><div style='color:#555;font-size:10px;letter-spacing:.5px'>CRR</div><div style='color:#64b5f6;font-weight:700;font-size:14px'>${crr}</div></div>
+      ${battingSecond?`<div style='flex:1;padding:10px 16px;border-right:1px solid #1a2840'><div style='color:#555;font-size:10px;letter-spacing:.5px'>NEED</div><div style='color:#f59e0b;font-weight:700;font-size:14px'>${needed} off ${ballsLeft}b</div></div>
+      <div style='flex:1;padding:10px 16px'><div style='color:#555;font-size:10px;letter-spacing:.5px'>RRR</div><div style='color:#ef5350;font-weight:700;font-size:14px'>${rrr}</div></div>`:""}
+    </div>`;
     return`<div style='background:#0d1b2a;border-radius:12px;overflow:hidden;margin:8px'>
-      <div style='padding:12px 16px;background:#112236;color:#7ea8d0;font-size:12px;text-transform:uppercase;letter-spacing:1px'>Live Scorecard</div>
-      ${row(t1)+''+row(t2)}
-      <div style='padding:12px 16px;color:#556;font-size:12px'>Full scorecard available after match ends · Updates every 90s via ESPN</div>
+      <div style='padding:10px 16px;background:#112236;display:flex;justify-content:space-between;align-items:center'>
+        <span style='color:#ff4444;font-size:11px;font-weight:700;letter-spacing:1px'>🔴 LIVE SCORECARD</span>
+        <span style='color:#556;font-size:10px'>Updates every 90s</span>
+      </div>
+      ${innRow(t1,!battingSecond&&o1>0)}${innRow(t2,battingSecond)}
+      ${(o1>0||o2>0)?rateRow:""}
+      ${stat?`<div style='padding:10px 16px;color:#90a4ae;font-size:12px;border-top:1px solid #1a2840'>📊 ${stat}</div>`:""}
+      <div style='padding:8px 16px;color:#3a4a5a;font-size:11px'>Full batting/bowling scorecard available after match ends</div>
     </div>`;
   }
   const inn=(data)=>{
@@ -3062,7 +3082,9 @@ let _liveState={
 };
 let _ambientNode=null;
 let _pollActive=false; // guard: prevent two concurrent polls
-const _invalidApiIds=new Set(); // CricAPI IDs that returned "Invalid API request" — never retry
+const _invalidApiIds=new Set(); // CricAPI IDs that are truly invalid (match doesn't exist)
+const _bbbUnavailableIds=new Set(); // IDs where match_bbb returned failure (bbb not available for this match)
+let _matchEndpointBlocked=false; // true = "match" endpoint not in API plan — skip it, still try match_bbb
 let _ballTimers=[]; // staggered virtual-delivery timers
 
 // ── SPLIT ESPN SCORE DELTA INTO VIRTUAL DELIVERIES ───────────────────────
@@ -3221,20 +3243,24 @@ async function _pollLiveCommentary(){
     let runs=0, wkts=0, overs=0, striker="", bowler="", matchEnded=false;
     let t1runs=null,t1wkts=null,t1overs=null,t2runs=null,t2wkts=null,t2overs=null;
 
-    if(_liveState.apiId){
-      // Skip if this ID was previously flagged as invalid — saves API calls
-      if(_invalidApiIds.has(_liveState.apiId)){
-        _liveState.apiId=null; // fall through to ESPN mode
-      }
+    if(_liveState.apiId&&_invalidApiIds.has(_liveState.apiId)){
+      _liveState.apiId=null; // truly invalid ID — clear it
     }
-    if(_liveState.apiId){
+    if(_liveState.apiId&&!_matchEndpointBlocked){
       const r=await fetch(_cricketURL("match",{id:_liveState.apiId}));
       const json=await r.json();
-      // Detect "Invalid API request" — blacklist this ID so we never call it again
       if(json.status==="failure"||(typeof json.status==="string"&&json.status.toLowerCase().includes("invalid"))){
+        const reason=(json.reason||json.status||"").toLowerCase();
+        if(reason.includes("invalid api")||reason.includes("invalid req")||reason.includes("not found")){
+          // Endpoint not available for this API plan — stop calling match, but keep match_bbb attempts
+          console.warn("CricAPI: match endpoint not in plan — switching to currentMatches fallback");
+          _matchEndpointBlocked=true;
+          throw new Error("match endpoint not in plan");
+        }
+        // Truly invalid match ID — blacklist it
         console.warn("CricAPI: invalid match ID, blacklisting:",_liveState.apiId);
         _invalidApiIds.add(_liveState.apiId);
-        _liveState.apiId=null; // fall through to ESPN mode on next poll
+        _liveState.apiId=null;
         throw new Error("invalid match id — falling back to ESPN");
       }
       if(json.status!=="success"||!json.data) throw new Error("cricapi no data");
@@ -3348,10 +3374,11 @@ async function _pollLiveCommentary(){
     if(w) w.textContent="🔴 "+runs+" for "+wkts+" ("+(overs||0).toFixed(1)+" ov) · Listening for next delivery…";
   }catch(e){ console.warn("Live poll error:",e); }
   finally{ _pollActive=false; }
-  // Always reschedule — 12s via CricAPI, 30s via ESPN fallback
+  // 12s if CricAPI match endpoint active; 30s otherwise (ESPN/currentMatches fallback)
   if(_liveState.active){
     if(_liveState.pollTimer) clearTimeout(_liveState.pollTimer);
-    _liveState.pollTimer=setTimeout(_pollLiveCommentary, _liveState.apiId?12000:30000);
+    const interval=(_liveState.apiId&&!_matchEndpointBlocked)?12000:30000;
+    _liveState.pollTimer=setTimeout(_pollLiveCommentary,interval);
   }
 }
 
@@ -3407,12 +3434,12 @@ function _buildLiveEvent(rd,wd,runs,wkts,overs,striker,bowler){
 // ── GET LATEST REAL BALL from CricAPI match_bbb ─────────────────────────────
 // Returns the newest unseen ball, or null if unavailable / no new ball
 async function _getLatestBall(apiId){
-  if(_invalidApiIds.has(apiId)) return null; // don't retry blacklisted IDs
+  if(_bbbUnavailableIds.has(apiId)) return null; // match_bbb confirmed unavailable for this match
   const r=await fetch(_cricketURL("match_bbb",{id:apiId}));
   if(!r.ok) return null;
   const json=await r.json();
   if(json.status==="failure"||(typeof json.status==="string"&&json.status.toLowerCase().includes("invalid"))){
-    _invalidApiIds.add(apiId); return null;
+    _bbbUnavailableIds.add(apiId); return null; // mark BBB unavailable — not the match ID itself
   }
   if(json.status!=="success"||!Array.isArray(json.data?.bbb)||!json.data.bbb.length) return null;
   const balls=json.data.bbb;
@@ -3474,15 +3501,68 @@ function _buildRealBallEvent(ball,runs,wkts,overs){
   }
 }
 
+// ── LIVE SCORE FEED FALLBACK — shown when match_bbb is unavailable ──────────
+// Renders current score entries in the liveFeed so it's never blank on open
+function _showLiveScoreFeed(){
+  const feed=document.getElementById("liveFeed");
+  const w=document.getElementById("liveWaiting");
+  if(!feed) return;
+  const all=[...matchData.live,...matchData.upcoming,...matchData.completed];
+  const m=all.find(x=>x.label===detKey);
+  if(!m) return;
+  // Build visible score cards for each innings we have data for
+  const entries=[];
+  const t1=m.team1, t2=m.team2;
+  if(t1.score){
+    const o1=parseFloat(t1.overs)||0;
+    const crr1=o1>0?(parseInt(t1.score)/o1).toFixed(2):"—";
+    entries.push({type:"NORMAL",
+      text:t1.flag+" "+t1.name+": "+t1.score+"/"+(t1.wkts||"0")+" ("+t1.overs+")",
+      jaffa:"CRR: "+crr1+" · "+t1.name+" ki pehli innings"});
+  }
+  if(t2.score){
+    const o2=parseFloat(t2.overs)||0;
+    const crr2=o2>0?(parseInt(t2.score)/o2).toFixed(2):"—";
+    const r1=parseInt(t1.score)||0, r2=parseInt(t2.score)||0;
+    const w2=parseInt(t2.wkts)||0;
+    const needed=r1-r2+1;
+    const ballsLeft=Math.max(0,Math.round((20-o2)*6));
+    const rrr=ballsLeft>0?((needed/(ballsLeft/6)).toFixed(2)):"—";
+    entries.push({type:"NORMAL",
+      text:t2.flag+" "+t2.name+": "+t2.score+"/"+(t2.wkts||"0")+" ("+t2.overs+")",
+      jaffa:needed>0?"Target: "+(r1+1)+" · "+needed+" chahiye "+ballsLeft+" balls mein · RRR: "+rrr:
+            t2.name+" aage hai! "+Math.abs(needed-1)+" runs lead!"});
+  }
+  if(m.status&&typeof m.status==="string"&&!m.status.includes("<")){
+    entries.push({type:"NORMAL",text:"📊 "+m.status,jaffa:"Live update — har 90 second mein refresh hoga"});
+  }
+  if(!entries.length){
+    entries.push({type:"NORMAL",text:"🔴 Match shuru hone wala hai…",jaffa:"Score updates jald aayenge"});
+  }
+  entries.forEach(ev=>{
+    const div=document.createElement("div");
+    div.className="bbb-item playing";
+    div.innerHTML="<div class='bbb-meta'><span class='bbb-badge "+ev.type+"'>LIVE</span></div>"
+      +"<div class='bbb-text'>"+ev.text+"</div>"
+      +"<div class='bbb-jaffa'>🎙️ "+ev.jaffa+"</div>";
+    feed.insertBefore(div,feed.firstChild);
+  });
+  if(w) w.textContent="🔴 Live score · Ball-by-ball API unavailable for IPL — commentary from score changes";
+}
+
 // ── PRELOAD LIVE BBB — fetches recent deliveries when user opens a live match ─
 // Solves "BBB empty on open" — shows last 20 actual deliveries immediately
 async function _preloadLiveBBB(apiId){
-  if(_invalidApiIds.has(apiId)) return;
+  // Note: don't gate on _invalidApiIds — match_bbb is a separate endpoint from match
+  if(_bbbUnavailableIds.has(apiId)){ _showLiveScoreFeed(); return; }
   try{
     const r=await fetch(_cricketURL("match_bbb",{id:apiId}));
-    if(!r.ok) return;
+    if(!r.ok){ _showLiveScoreFeed(); return; }
     const json=await r.json();
-    if(json.status!=="success"||!Array.isArray(json.data?.bbb)||!json.data.bbb.length) return;
+    if(json.status!=="success"||!Array.isArray(json.data?.bbb)||!json.data.bbb.length){
+      _bbbUnavailableIds.add(apiId); // no BBB for this match — don't retry
+      _showLiveScoreFeed(); return;
+    }
     const balls=json.data.bbb;
     _liveState.lastBallCount=balls.length;
 
