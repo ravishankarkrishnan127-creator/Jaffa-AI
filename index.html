@@ -1841,47 +1841,47 @@ function _expandBBB(dk){
     const _bat=(s)=>_bat_names.length?_bat_names[s%_bat_names.length]:"the batter";
 
     const DOT_T=(bwl,bat)=>[
-      `${bwl} keeps it tight — ${bat} can't get it away. Dot ball.`,
-      `Good pressure from ${bwl}, ${bat} is watchful. No run.`,
-      `${bat} plays it safe against ${bwl}. Dot.`,
-      `${bwl} contains ${bat} well this time. Scoreboard stuck.`,
-      `${bat} is cautious — ${bwl} gets the dot. Economy bowling.`,
-      `${bwl} outfoxes ${bat} this delivery — no run, maiden pressure building.`,
-      `Sharp from ${bwl} — ${bat} gets nothing off this ball. Dot.`,
-      `Tight from ${bwl}, ${bat} respects it. Dot ball.`,
+      `${bwl} keeps it tight and ${bat} can't get it away at all. Dot ball — the pressure is building nicely here.`,
+      `Good line and length from ${bwl}, and ${bat} is being very watchful. No run off that delivery. The bowler is on top.`,
+      `${bat} plays it safe against ${bwl}, no risk taken whatsoever. Dot ball. Smart batting, but the scoring has dried up.`,
+      `${bwl} contains ${bat} really well this time — the batsman wanted to score but couldn't find a way. Scoreboard stuck.`,
+      `${bat} is being cautious here — ${bwl} earns another dot ball. Tight economy bowling, keeping the pressure on.`,
+      `${bwl} outfoxes ${bat} on this delivery — nothing doing, no run at all. The maiden pressure is really building now.`,
+      `Sharp delivery from ${bwl} and ${bat} gets absolutely nothing off it. Dot ball. The bowler is winning this battle.`,
+      `Really tight from ${bwl} and ${bat} respects the good ball. Dot ball — no easy runs available right now.`,
     ];
     const ONE_T=(bwl,bat)=>[
-      `${bat} works ${bwl} away for a single. Strike rotating.`,
-      `Smart cricket — ${bat} takes a quick single off ${bwl}. Keeps things moving.`,
-      `${bat} nudges ${bwl} for one. Another run on the board.`,
-      `${bat} tucks ${bwl} away for a single. Good game management.`,
-      `Clever single by ${bat} off ${bwl}. Keeping the scoreboard ticking.`,
-      `${bwl} gives a single — ${bat} takes it. Strike rotated.`,
-      `${bat} stays composed against ${bwl}, takes the single. One run.`,
-      `Quick single from ${bat} off ${bwl}. Keeping pressure down.`,
+      `${bat} works ${bwl} away for a comfortable single. Strike rotated, and both batters are safely across. Smart cricket.`,
+      `Good awareness from ${bat} — picks up a quick single off ${bwl} and keeps the scoreboard moving. No risk involved.`,
+      `${bat} nudges ${bwl} for one more run. Another one on the board — the partnership is ticking along nicely here.`,
+      `${bat} tucks ${bwl} away for a single, good game management. Keeping the field honest and the score ticking over.`,
+      `Clever single by ${bat} off ${bwl}. Keeping the scoreboard moving — that's how you build an innings, ball by ball.`,
+      `${bwl} concedes a single — ${bat} takes it without any fuss. Strike rotated, and the other batter is on now.`,
+      `${bat} stays composed against ${bwl} and takes the single easily. One run added — calm and collected batting.`,
+      `Quick single from ${bat} off ${bwl}, good calling between the wickets. Keeping the pressure off with sharp running.`,
     ];
     const TWO_T=(bwl,bat)=>[
-      `${bat} finds the gap against ${bwl} — two runs! Good running.`,
-      `${bwl} gives ${bat} room — punished for two. Alert running between the wickets.`,
-      `Two for ${bat} off ${bwl}. Excellent running between the wickets.`,
-      `${bat} and partner push hard — two off ${bwl}. Great calling.`,
-      `${bat} times it well off ${bwl}. Two runs, building momentum.`,
-      `${bwl} concedes two — ${bat} uses good judgment. Running sharp.`,
+      `${bat} finds the gap against ${bwl} and they come back for two! Good running between the wickets — well played.`,
+      `${bwl} errs slightly and ${bat} makes them pay with two runs. Alert running between the wickets, great calling.`,
+      `Two runs for ${bat} off ${bwl}. Excellent running between the wickets — they turned that one into two smartly.`,
+      `${bat} and partner push hard and convert it into two runs off ${bwl}. Great understanding between the batters.`,
+      `${bat} times it well off ${bwl} — two runs coming, and the momentum is building. The scoring rate is picking up.`,
+      `${bwl} concedes two runs there — ${bat} used good judgment and the running was sharp. Pressure on the bowler.`,
     ];
     const THREE_T=(bwl,bat)=>[
-      `${bat} hits ${bwl} hard — they sprint three! Brilliant running! Three runs!`,
-      `Three runs off ${bwl} — ${bat} and partner push hard. Great calling!`,
-      `${bat} times it well against ${bwl} — fielder can't cut it off in time. Three runs!`,
+      `${bat} connects well off ${bwl} — and they sprint three! Brilliant running between the wickets! Three runs added!`,
+      `Three runs off ${bwl} — ${bat} and partner push hard, great calling from both ends. Outstanding running, three more!`,
+      `${bat} times it beautifully against ${bwl} and the fielder can't cut it off in time. They come back for three runs!`,
     ];
     const WIDE_T=(bwl)=>[
-      `${bwl} strays off line — wide signalled by the umpire. Extra run.`,
-      `Control slips from ${bwl} — umpire raises the arm. Wide. Costly.`,
-      `${bwl} can't find the target — wide called! Free run for the batting side.`,
-      `${bwl} overdoes it — wide by the umpire. Frustrating delivery.`,
+      `${bwl} strays off the line and the umpire signals wide immediately. That's a free run — costly delivery for the bowling side.`,
+      `Control slips away from ${bwl} there — umpire raises the arm for a wide. That's a frustrating extra run conceded.`,
+      `${bwl} can't find the target this time — wide called by the umpire! Free run for the batting side, the bowler won't be happy.`,
+      `${bwl} overdoes it and the umpire has no hesitation — wide signalled. An unnecessary extra run given away there.`,
     ];
     const NB_T=(bwl)=>[
-      `${bwl} oversteps — no ball! Free hit coming up. Batter's chance!`,
-      `Front foot no ball from ${bwl}! Umpire calls it. Free hit next delivery!`,
+      `${bwl} oversteps the crease — umpire calls no ball! Free hit coming up on the next delivery. Big chance for the batter!`,
+      `Front foot no ball from ${bwl}! The umpire calls it and that means a free hit next ball. The batter can swing freely now!`,
     ];
 
     const fullOv=Math.floor(overs), partBalls=Math.round((overs-fullOv)*10);
@@ -1933,6 +1933,11 @@ function _expandBBB(dk){
 }
 
 // ── BUILD HIGHLIGHTS FROM SCORECARD when bbb[] is empty ──────────────────────
+// Expand dismissal abbreviations so TTS reads them correctly
+function _expandDismissal(d){
+  if(!d) return d;
+  return d.replace(/\bc\s/g,"caught ").replace(/\bb\s/g,"bowled ").replace(/\blbw\b/gi,"LBW").replace(/\bst\s/g,"stumped ").replace(/c&b\s/g,"caught and bowled ");
+}
 function _buildHighlightsFromScorecard(d){
   const events=[];
   function addInnings(bat,inn){
@@ -1942,27 +1947,28 @@ function _buildHighlightsFromScorecard(d){
     for(const r of bat.rows){
       const last=r.n.split(" ").pop();
       const sr=r.b>0?(r.r*100/r.b).toFixed(0):"—";
+      const dis=_expandDismissal(r.d);
       if(r.r>=100){
         events.push({type:"HUNDRED",over:"—",
-          text:r.n+" — CENTURY! "+r.r+" off "+r.b+" balls. "+r.f+"×4, "+r.s+"×6. SR "+sr+". "+(r.no?"Not out.":r.d+"."),
-          dramatic:"SHATAK! "+last+" ne CENTURY maar di! "+r.r+" off "+r.b+" — "+r.f+" chauke aur "+r.s+" chhakke! Kya innings hai yaar!",
-          funny:last+" ka CENTURY! "+r.b+" balls mein "+r.r+"! Queue lagao signature ke liye — record territory mein hai!",
-          analytical:r.n+" — "+r.r+"("+r.b+") SR "+sr+". "+r.f+" fours, "+r.s+" sixes. "+(r.no?"Not out.":r.d+".")+" Innings "+inn+".",
+          text:r.n+" — CENTURY! "+r.r+" runs off just "+r.b+" balls, with "+r.f+" fours and "+r.s+" sixes. Strike rate "+sr+". "+(r.no?"Still not out — what an innings!":dis+". What a knock for "+team+"!"),
+          dramatic:"SHATAK! "+last+" ne CENTURY maar di! "+r.r+" runs, sirf "+r.b+" balls! "+r.f+" chauke aur "+r.s+" chhakke! Kya innings hai yaar — "+team+" ke liye ek yaadgaar pari! Stadium mein josh dikha!",
+          funny:last+" ka CENTURY! "+r.b+" balls mein "+r.r+" run bana diye! Bhai, signature ke liye queue lagao — yeh toh record territory mein hai! "+team+" ke fans naach rahe hain!",
+          analytical:r.n+" ne shandar century lagayi — "+r.r+" runs, "+r.b+" balls, strike rate "+sr+". "+r.f+" fours aur "+r.s+" sixes. "+(r.no?"Not out — abhi aur damage hoga.":dis+". Match-defining innings for "+team+"."),
           score:sc});
       } else if(r.r>=50){
         events.push({type:"FIFTY",over:"—",
-          text:r.n+" — FIFTY! "+r.r+" off "+r.b+" balls. "+r.f+"×4, "+r.s+"×6. SR "+sr+". "+(r.no?"Not out.":r.d+"."),
-          dramatic:"ARDHSHATAK! "+last+" ki FIFTY! "+r.r+" off "+r.b+" — "+r.f+" chauke aur "+r.s+" chhakke! "+team+" aage badh raha hai!",
-          funny:last+" ne FIFTY maari! "+r.b+" balls mein "+r.r+"! Bhai, century ka iraaada hai kya? Daudta raho!",
-          analytical:r.n+" — "+r.r+"("+r.b+") SR "+sr+". "+r.f+" fours, "+r.s+" sixes. "+(r.no?"Not out.":r.d+".")+" Innings "+inn+".",
+          text:r.n+" — FIFTY! "+r.r+" runs off "+r.b+" balls, including "+r.f+" fours and "+r.s+" sixes. Strike rate "+sr+". "+(r.no?"Remains not out — looking dangerous!":dis+". Valuable contribution for "+team+"."),
+          dramatic:"ARDHSHATAK! "+last+" ki FIFTY! "+r.r+" runs, "+r.b+" balls mein — "+r.f+" chauke aur "+r.s+" chhakke! "+team+" aage badh raha hai aur "+last+" maidaan mein aag laga raha hai! Kya player hai!",
+          funny:last+" ne FIFTY maari! "+r.b+" balls mein "+r.r+" run! Bhai, century ka iraaada hai kya? Aise hi daudta reh — "+team+" ke fans khush hain aur bowlers pareshan!",
+          analytical:r.n+" ne fifty complete ki — "+r.r+" runs off "+r.b+" balls, strike rate "+sr+". "+r.f+" fours aur "+r.s+" sixes ke saath. "+(r.no?"Not out — abhi aur batting bachi hai.":dis+". Important innings in "+team+"'s total."),
           score:sc});
       }
       if(!r.no&&r.d&&r.d!=="not out"){
         events.push({type:"WICKET",over:"—",
-          text:r.n+" OUT! "+r.d+". Scored "+r.r+"("+r.b+"). "+team+" lose a wicket.",
-          dramatic:"WICKET! "+last+" OUT — "+r.d+"! "+r.r+" pe gaye. "+team+" ko dhakka!",
-          funny:last+" OUT! "+r.r+" banaake chale gaye — "+r.d+". Chalo, agli jodi!",
-          analytical:r.n+" out for "+r.r+"("+r.b+"). "+r.d+". Innings "+inn+".",
+          text:r.n+" OUT! "+dis+". Scored "+r.r+" runs off "+r.b+" balls with "+r.f+" fours and "+r.s+" sixes. "+team+" lose a wicket — big moment in the innings!",
+          dramatic:"WICKET! "+last+" OUT — "+dis+"! Sirf "+r.r+" run banaake pavilion wapas ja rahe hain, "+r.b+" balls face ki. "+team+" ko bada dhakka laga hai — ab nayi jodi ko sambhalna hoga!",
+          funny:last+" OUT! "+r.r+" banaake chale gaye bhai — "+dis+". "+r.b+" balls khelke wapas! Chalo, agli jodi aati hai — dekhte hain kya hota hai "+team+" ke liye!",
+          analytical:r.n+" dismissed for "+r.r+" off "+r.b+" balls. "+dis+". "+r.f+" fours aur "+r.s+" sixes. "+team+" ka wicket gira — innings "+inn+" mein pressure badh raha hai.",
           score:sc});
       }
     }
@@ -1971,10 +1977,10 @@ function _buildHighlightsFromScorecard(d){
         if(b.w>=3){
           const bl=b.n.split(" ").pop();
           events.push({type:"WICKET",over:"—",
-            text:b.n+" — "+b.w+"/"+b.r+" in "+b.o+" overs. Eco: "+b.eco+". Brilliant spell against "+team+"!",
-            dramatic:bl+" ne "+b.w+" wicket liye! "+b.o+" overs mein sirf "+b.r+"! Kya spell — "+team+" batting sambhaal nahi pai!",
-            funny:bl+" ne "+b.w+" wicket liye — captain ne roka warna aur bhi jaate! Economy "+b.eco+"! Kya bowler hai!",
-            analytical:b.n+" — "+b.w+"/"+b.r+" in "+b.o+" overs. Economy "+b.eco+". Key spell, innings "+inn+".",
+            text:b.n+" — outstanding spell! "+b.w+" wickets for "+b.r+" runs in "+b.o+" overs at economy "+b.eco+". Devastating bowling against "+team+"!",
+            dramatic:bl+" ne kya spell daala hai! "+b.w+" wicket liye, "+b.o+" overs mein sirf "+b.r+" run diye! Economy "+b.eco+" — "+team+" ki batting ko poori tarah tod diya! Kya bowler hai yaar!",
+            funny:bl+" ne "+b.w+" wicket le liye — "+b.o+" overs mein "+b.r+" run! Captain ne roka warna aur bhi aate! Economy "+b.eco+" — "+team+" ke batters ko sapne mein bhi dikhega yeh spell!",
+            analytical:b.n+" ka zabardast spell — "+b.w+" wickets for "+b.r+" runs in "+b.o+" overs. Economy rate "+b.eco+". "+team+" ke against match-changing bowling performance, innings "+inn+" mein decisive impact.",
             score:sc});
         }
       }
@@ -2714,7 +2720,7 @@ function _buildRealBallEvent(ball,runs,wkts,overs){
   const bLast=bowler.split(" ").pop();
   const ov=ball.over||ball.overs||overs||"";
   if(isWicket){
-    const how=ball.howOut||ball.dismissal||"dismissed";
+    const how=_expandDismissal(ball.howOut||ball.dismissal||"dismissed");
     return{type:"WICKET",
       text:"Over "+ov+": "+batter+" OUT! "+how+" — "+bowler+". "+score,
       dramatic:"WICKET! WICKET! "+last+" OUT! "+bLast+" ne tod diya! "+how+"! Stadium mein sannata! "+score,
@@ -2843,8 +2849,9 @@ async function _preloadLiveBBB(apiId){
       const scoreStr=runsTotal?(runsTotal+" for "+wktsTotal):"";
       let text="",commentary="";
       if(isWkt){
-        text="Over "+ov+": "+batter+" OUT! "+(ball.howOut||"dismissed")+" — "+bowler+(scoreStr?" · "+scoreStr:"");
-        commentary="WICKET! "+last+" OUT — "+bLast+" ne liya! "+(ball.howOut||"")+" "+(scoreStr||"");
+        const _how=_expandDismissal(ball.howOut||"dismissed");
+        text="Over "+ov+": "+batter+" OUT! "+_how+" — "+bowler+(scoreStr?" · "+scoreStr:"");
+        commentary="WICKET! "+last+" OUT — "+bLast+" ne liya! "+_how+" "+(scoreStr||"");
       } else if(isSix){
         text="Over "+ov+": "+batter+" hits "+bowler+" for SIX!"+(scoreStr?" · "+scoreStr:"");
         commentary="CHHA! "+last+" ne "+bLast+" ko bahar bheja! "+(scoreStr||"");
